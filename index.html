@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Productivity Timer</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Productivity Timer</h1>
+            <div class="date-display" id="currentDate"></div>
+        </header>
+
+        <main>
+            <div class="timer-section">
+                <!-- NEW: Added current slot indicator -->
+                <div class="current-slot-info">
+                    <div class="slot-indicator">
+                        <span class="slot-label">Current Slot:</span>
+                        <span id="currentSlot" class="slot-time">--</span>
+                    </div>
+                </div>
+                
+                <div class="main-timer">
+                    <div class="timer-display" id="timerDisplay">00:00:00</div>
+                    <div class="timer-controls">
+                        <button id="startBtn" class="btn btn-start">Start</button>
+                        <button id="pauseBtn" class="btn btn-pause" disabled>Pause</button>
+                        <button id="stopBtn" class="btn btn-stop" disabled>Stop</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-section">
+                <div class="today-stats">
+                    <h3>Today's Progress</h3>
+                    <div class="stat-item">
+                        <span>Today's Total:</span>
+                        <span id="todayTotal">0H 0M</span>
+                    </div>
+                    <div class="stat-item">
+                        <!-- CHANGED: Updated to show week number -->
+                        <span id="weekLabel">This Week:</span>
+                        <span id="weekTotal">0H 0M</span>
+                    </div>
+                    <div class="ranking-actions">
+                        <button id="showRankingBtn" class="btn btn-ranking">📊 Weekly Ranking</button>
+                        <!-- NEW: Added Today's Slots button -->
+                        <button id="showTodayBtn" class="btn btn-today">📋 Today's Slots</button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Weekly Ranking Modal (existing) -->
+    <div id="rankingModal" class="ranking-modal" style="display: none;">
+        <div class="ranking-content">
+            <div class="ranking-header">
+                <h2>📊 Weekly Productivity Ranking</h2>
+                <button id="closeRankingBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="ranking-stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="currentRank">#-</div>
+                    <div class="stat-label">Current Week Rank</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="totalWeeks">0</div>
+                    <div class="stat-label">Total Weeks</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="averageWeek">0H 0M</div>
+                    <div class="stat-label">Average Week</div>
+                </div>
+            </div>
+            <div class="ranking-chart">
+                <canvas id="weeklyChart" width="400" height="200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- NEW: Today's Slots Modal -->
+    <div id="todayModal" class="ranking-modal" style="display: none;">
+        <div class="ranking-content">
+            <div class="ranking-header">
+                <h2>📋 Today's Time Slots</h2>
+                <button id="closeTodayBtn" class="close-btn">&times;</button>
+            </div>
+            <div class="today-summary">
+                <div class="summary-item">
+                    <span>Current Slot:</span>
+                    <span id="modalCurrentSlot">--</span>
+                </div>
+                <div class="summary-item">
+                    <span>Total Today:</span>
+                    <span id="modalTodayTotal">0H 0M</span>
+                </div>
+            </div>
+            <div class="slots-grid" id="slotsGrid">
+                <!-- Slots will be populated here -->
+            </div>
+        </div>
+    </div>
+
+    <script src="renderer.js"></script>
+</body>
+</html>

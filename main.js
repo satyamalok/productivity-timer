@@ -246,3 +246,64 @@ ipcMain.handle('get-today-hourly-breakdown', () => {
 ipcMain.handle('get-current-time-slot', () => {
   return global.db.getCurrentTimeSlot();
 });
+
+// Export/Import IPC handlers
+ipcMain.handle('export-all-data', async () => {
+  try {
+    const data = global.db.exportAllDataToCSV();
+    
+    // Create CSV files
+    const dailyCSV = global.db.dailyDataToCSV(data.dailyData);
+    const weeklyCSV = global.db.weeklyDataToCSV(data.weeklyData);
+    
+    // Save files
+    const timestamp = new Date().toISOString().split('T')[0];
+    const dailyPath = global.db.saveCSVToFile(dailyCSV, `daily-data-${timestamp}.csv`);
+    const weeklyPath = global.db.saveCSVToFile(weeklyCSV, `weekly-data-${timestamp}.csv`);
+    
+    return {
+      success: true,
+      files: {
+        daily: dailyPath,
+        weekly: weeklyPath
+      },
+      data: data.totalRecords
+    };
+  } catch (error) {
+    console.error('Export error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('import-daily-data', async (event, filePath) => {
+  try {
+    const csvData = global.db.readCSVFromFile(filePath);
+    const result = global.db.importDailyDataFromCSV(csvData);
+    
+    return {
+      success: true,
+      ...result
+    };
+  } catch (error) {
+    console.error('Import error:', error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+});
+
+ipcMain.handle('show-file-dialog', async (event, options) => {
+  const { dialog } = require('electron');
+  const result = await dialog.showOpenDialog(mainWindow, options);
+  return result;
+});
+
+ipcMain.handle('show-save-dialog', async (event, options) => {
+  const { dialog } = require('electron');
+  const result = await dialog.showSaveDialog(mainWindow, options);
+  return result;
+});

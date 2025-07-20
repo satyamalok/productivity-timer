@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
     setupRankingModal(); // Add this line
     setupEnhancedUI(); // Add this line
+    setupDataManagement(); // Add this line
     determineCurrentHourSlot();
     
     // Update stats every minute
@@ -655,4 +656,186 @@ function populateSlotsGrid(hourlyBreakdown) {
             </div>
         </div>
     `).join('');
+}
+
+// Data Management functionality
+function setupDataManagement() {
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const backupBtn = document.getElementById('backupBtn');
+    
+    exportBtn.addEventListener('click', exportData);
+    importBtn.addEventListener('click', importData);
+    backupBtn.addEventListener('click', createBackup);
+    
+    // Update data statistics
+    updateDataStatistics();
+}
+
+async function exportData() {
+    try {
+        exportBtn.disabled = true;
+        exportBtn.textContent = '📤 Exporting...';
+        
+        const result = await ipcRenderer.invoke('export-all-data');
+        
+        if (result.success) {
+            showNotification('Success!', 
+                `Data exported successfully!\n\nDaily Data: ${result.files.daily}\nWeekly Data: ${result.files.weekly}\n\nTotal Records: ${result.data.daily} days, ${result.data.weekly} weeks`, 
+                'success'
+            );
+        } else {
+            showNotification('Export Failed', `Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Export error:', error);
+        showNotification('Export Failed', `Unexpected error: ${error.message}`, 'error');
+    } finally {
+        exportBtn.disabled = false;
+        exportBtn.textContent = '📤 Export Data';
+    }
+}
+
+async function importData() {
+    try {
+        // Show file dialog to select CSV
+        const result = await ipcRenderer.invoke('show-file-dialog', {
+            title: 'Select Daily Data CSV File',
+            filters: [
+                { name: 'CSV Files', extensions: ['csv'] },
+                { name: 'All Files', extensions: ['*'] }
+            ],
+            properties: ['openFile']
+        });
+        
+        if (result.canceled || !result.filePaths.length) {
+            return;
+        }
+        
+        const filePath = result.filePaths[0];
+        
+        importBtn.disabled = true;
+        importBtn.textContent = '📥 Importing...';
+        
+        const importResult = await ipcRenderer.invoke('import-daily-data', filePath);
+        
+        if (importResult.success) {
+            showNotification('Import Successful!', 
+                `Imported ${importResult.importedCount} records successfully!\n\nErrors: ${importResult.errorCount}\nTotal processed: ${importResult.totalRows}`, 
+                'success'
+            );
+            
+            // Refresh all displays
+            updateStatsDisplay();
+            updateDataStatistics();
+        } else {
+            showNotification('Import Failed', `Error: ${importResult.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Import error:', error);
+        showNotification('Import Failed', `Unexpected error: ${error.message}`, 'error');
+    } finally {
+        importBtn.disabled = false;
+        importBtn.textContent = '📥 Import Data';
+    }
+}
+
+async function createBackup() {
+    try {
+        backupBtn.disabled = true;
+        backupBtn.textContent = '💾 Creating...';
+        
+        const result = await ipcRenderer.invoke('export-all-data');
+        
+        if (result.success) {
+            showNotification('Backup Created!', 
+                `Backup files created in your Documents folder:\n\n📁 Productivity Timer Exports\n\nFiles:\n• ${result.files.daily.split('\\').pop()}\n• ${result.files.weekly.split('\\').pop()}`, 
+                'success'
+            );
+        } else {
+            showNotification('Backup Failed', `Error: ${result.error}`, 'error');
+        }
+    } catch (error) {
+        console.error('Backup error:', error);
+        showNotification('Backup Failed', `Unexpected error: ${error.message}`, 'error');
+    } finally {
+        backupBtn.disabled = false;
+        backupBtn.textContent = '💾 Backup';
+    }
+}
+
+async function updateDataStatistics() {
+    try {
+        const todayData = await ipcRenderer.invoke('get-today-data');
+        const weeklyData = await ipcRenderer.invoke('get-weekly-ranking-data', 100); // Get all weeks
+        
+        // Calculate total days with data
+        const totalDays = weeklyData ? weeklyData.reduce((sum, week) => {
+            // Estimate days per week (rough calculation)
+            return sum + Math.min(7, Math.ceil(week.total_minutes / 60 / 8)); // 8 hours per day estimate
+        }, 0) : 0;
+        
+        // Calculate total hours
+        const totalMinutes = weeklyData ? weeklyData.reduce((sum, week) => sum + week.total_minutes, 0) : 0;
+        
+        document.getElementById('totalDays').textContent = totalDays;
+        document.getElementById('totalHours').textContent = formatTime(totalMinutes);
+        
+    } catch (error) {
+        console.error('Error updating data statistics:', error);
+        document.getElementById('totalDays').textContent = 'Error';
+        document.getElementById('totalHours').textContent = 'Error';
+    }
+}
+
+// Enhanced notification system
+function showNotification(title, message, type = 'info') {
+    // Remove existing notifications
+    const existingNotifications = document.querySelectorAll('.notification');
+    existingNotifications.forEach(n => n.remove());
+    
+    const notification = document.createElement('div');
+    notification.className = `notification notification-${type}`;
+    notification.innerHTML = `
+        <div class="notification-content">
+            <div class="notification-header">
+                <span class="notification-icon">${getNotificationIcon(type)}</span>
+                <span class="notification-title">${title}</span>
+                <button class="notification-close">&times;</button>
+            </div>
+            <div class="notification-message">${message.replace(/\n/g, '<br>')}</div>
+        </div>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Close button functionality
+    const closeBtn = notification.querySelector('.notification-close');
+    closeBtn.addEventListener('click', () => {
+        notification.remove();
+    });
+    
+    // Auto-remove after 8 seconds for success, 15 for errors
+    const autoRemoveTime = type === 'success' ? 8000 : 15000;
+    setTimeout(() => {
+        if (document.body.contains(notification)) {
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, autoRemoveTime);
+    
+    // Animate in
+    setTimeout(() => {
+        notification.style.opacity = '1';
+        notification.style.transform = 'translateX(0)';
+    }, 100);
+}
+
+function getNotificationIcon(type) {
+    switch (type) {
+        case 'success': return '✅';
+        case 'error': return '❌';
+        case 'warning': return '⚠️';
+        default: return 'ℹ️';
+    }
 }

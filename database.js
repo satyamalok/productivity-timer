@@ -393,6 +393,259 @@ getCurrentTimeSlot() {
     return slotMap[hour] || 'Other';
 }
 
+// Export all data to CSV format
+exportAllDataToCSV() {
+    try {
+        // Export daily data
+        const dailyData = this.db.prepare(`
+            SELECT date, day_name, 
+                   slot_5_6_am, slot_6_7_am, slot_7_8_am, slot_8_9_am,
+                   slot_9_10_am, slot_10_11_am, slot_11_12_am, slot_12_1_pm,
+                   slot_1_2_pm, slot_2_3_pm, slot_3_4_pm, slot_4_5_pm,
+                   slot_5_6_pm, slot_6_7_pm, slot_7_8_pm, slot_8_9_pm,
+                   other_time, total_minutes, notes
+            FROM daily_data 
+            ORDER BY date DESC
+        `).all();
+        
+        // Export weekly data
+        const weeklyData = this.db.prepare(`
+            SELECT week_number, year, date_range, total_minutes, 
+                   total_hours_formatted, rank
+            FROM weekly_data 
+            ORDER BY year DESC, week_number DESC
+        `).all();
+        
+        return {
+            dailyData,
+            weeklyData,
+            exportDate: new Date().toISOString(),
+            totalRecords: {
+                daily: dailyData.length,
+                weekly: weeklyData.length
+            }
+        };
+    } catch (error) {
+        console.error('Export error:', error);
+        throw error;
+    }
+}
+
+// Convert daily data to CSV string
+dailyDataToCSV(dailyData) {
+    if (!dailyData || dailyData.length === 0) {
+        return 'No daily data to export';
+    }
+    
+    // CSV headers matching your Google Sheets format
+    const headers = [
+        'Date', 'Day', '5-6 AM', '6-7 AM', '7-8 AM', '8-9 AM',
+        '9-10 AM', '10-11 AM', '11-12 PM', '12-1 PM', '1-2 PM', '2-3 PM',
+        '3-4 PM', '4-5 PM', '5-6 PM', '6-7 PM', '7-8 PM', '8-9 PM',
+        'Other', 'Total Min', 'Total Hours', 'Notes'
+    ];
+    
+    let csv = headers.join(',') + '\n';
+    
+    dailyData.forEach(row => {
+        const totalHours = this.formatMinutesToHours(row.total_minutes);
+        const csvRow = [
+            row.date,
+            row.day_name,
+            row.slot_5_6_am || 0,
+            row.slot_6_7_am || 0,
+            row.slot_7_8_am || 0,
+            row.slot_8_9_am || 0,
+            row.slot_9_10_am || 0,
+            row.slot_10_11_am || 0,
+            row.slot_11_12_am || 0,
+            row.slot_12_1_pm || 0,
+            row.slot_1_2_pm || 0,
+            row.slot_2_3_pm || 0,
+            row.slot_3_4_pm || 0,
+            row.slot_4_5_pm || 0,
+            row.slot_5_6_pm || 0,
+            row.slot_6_7_pm || 0,
+            row.slot_7_8_pm || 0,
+            row.slot_8_9_pm || 0,
+            row.other_time || 0,
+            row.total_minutes,
+            `"${totalHours}"`,
+            `"${(row.notes || '').replace(/"/g, '""')}"`
+        ];
+        csv += csvRow.join(',') + '\n';
+    });
+    
+    return csv;
+}
+
+// Convert weekly data to CSV string
+weeklyDataToCSV(weeklyData) {
+    if (!weeklyData || weeklyData.length === 0) {
+        return 'No weekly data to export';
+    }
+    
+    const headers = ['Week', 'Year', 'Date Range', 'Total Minutes', 'Total Hours', 'Rank'];
+    let csv = headers.join(',') + '\n';
+    
+    weeklyData.forEach(row => {
+        const csvRow = [
+            `Week ${row.week_number}`,
+            row.year,
+            `"${row.date_range}"`,
+            row.total_minutes,
+            `"${row.total_hours_formatted}"`,
+            row.rank || 'Unranked'
+        ];
+        csv += csvRow.join(',') + '\n';
+    });
+    
+    return csv;
+}
+
+// Import daily data from CSV
+importDailyDataFromCSV(csvData) {
+    const lines = csvData.split('\n').filter(line => line.trim());
+    if (lines.length < 2) {
+        throw new Error('Invalid CSV format - no data rows found');
+    }
+    
+    const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+    let importedCount = 0;
+    let errorCount = 0;
+    
+    // Prepare insert statement
+    const insertStmt = this.db.prepare(`
+        INSERT OR REPLACE INTO daily_data 
+        (date, day_name, slot_5_6_am, slot_6_7_am, slot_7_8_am, slot_8_9_am,
+         slot_9_10_am, slot_10_11_am, slot_11_12_am, slot_12_1_pm,
+         slot_1_2_pm, slot_2_3_pm, slot_3_4_pm, slot_4_5_pm,
+         slot_5_6_pm, slot_6_7_pm, slot_7_8_pm, slot_8_9_pm,
+         other_time, total_minutes, notes)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    
+    for (let i = 1; i < lines.length; i++) {
+        try {
+            const values = this.parseCSVLine(lines[i]);
+            if (values.length < 20) continue; // Skip incomplete rows
+            
+            // Calculate total minutes from hourly slots
+            let totalMinutes = 0;
+            for (let j = 2; j <= 18; j++) { // Skip date, day, and notes columns
+                totalMinutes += parseInt(values[j]) || 0;
+            }
+            
+            insertStmt.run(
+                values[0], // date
+                values[1], // day
+                parseInt(values[2]) || 0,  // 5-6 AM
+                parseInt(values[3]) || 0,  // 6-7 AM
+                parseInt(values[4]) || 0,  // 7-8 AM
+                parseInt(values[5]) || 0,  // 8-9 AM
+                parseInt(values[6]) || 0,  // 9-10 AM
+                parseInt(values[7]) || 0,  // 10-11 AM
+                parseInt(values[8]) || 0,  // 11-12 PM
+                parseInt(values[9]) || 0,  // 12-1 PM
+                parseInt(values[10]) || 0, // 1-2 PM
+                parseInt(values[11]) || 0, // 2-3 PM
+                parseInt(values[12]) || 0, // 3-4 PM
+                parseInt(values[13]) || 0, // 4-5 PM
+                parseInt(values[14]) || 0, // 5-6 PM
+                parseInt(values[15]) || 0, // 6-7 PM
+                parseInt(values[16]) || 0, // 7-8 PM
+                parseInt(values[17]) || 0, // 8-9 PM
+                parseInt(values[18]) || 0, // Other
+                totalMinutes,
+                values[21] || '' // notes
+            );
+            
+            importedCount++;
+        } catch (error) {
+            console.error(`Error importing row ${i}:`, error);
+            errorCount++;
+        }
+    }
+    
+    // Recalculate weekly data after import
+    this.recalculateAllWeeklyData();
+    
+    return {
+        importedCount,
+        errorCount,
+        totalRows: lines.length - 1
+    };
+}
+
+// Parse CSV line handling quotes and commas
+parseCSVLine(line) {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+        const char = line[i];
+        
+        if (char === '"') {
+            inQuotes = !inQuotes;
+        } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+        } else {
+            current += char;
+        }
+    }
+    
+    result.push(current.trim());
+    return result;
+}
+
+// Recalculate all weekly data
+recalculateAllWeeklyData() {
+    // Get all unique weeks from daily data
+    const weekQuery = this.db.prepare(`
+        SELECT DISTINCT strftime('%Y', date) as year,
+               strftime('%W', date) as week
+        FROM daily_data
+        ORDER BY year, week
+    `);
+    
+    const weeks = weekQuery.all();
+    
+    weeks.forEach(week => {
+        // Force update each week
+        const tempDate = new Date(week.year, 0, 1 + (week.week * 7));
+        this.updateWeeklyData(true); // Force ranking update
+    });
+}
+
+// Save CSV to file
+saveCSVToFile(csvData, filename) {
+    const fs = require('fs');
+    const path = require('path');
+    const { app } = require('electron');
+    
+    // Get user's Documents folder
+    const userDataPath = app.getPath('documents');
+    const exportPath = path.join(userDataPath, 'Productivity Timer Exports');
+    
+    // Create exports folder if it doesn't exist
+    if (!fs.existsSync(exportPath)) {
+        fs.mkdirSync(exportPath, { recursive: true });
+    }
+    
+    const filePath = path.join(exportPath, filename);
+    fs.writeFileSync(filePath, csvData, 'utf8');
+    
+    return filePath;
+}
+
+// Read CSV from file
+readCSVFromFile(filePath) {
+    const fs = require('fs');
+    return fs.readFileSync(filePath, 'utf8');
+}
+
     // Close database connection
     close() {
         this.db.close();

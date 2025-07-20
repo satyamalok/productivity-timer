@@ -124,6 +124,27 @@ class ProductivityDB {
         return stmt.run(minutes, minutes, today);
     }
 
+    // Update specific slot time (for manual editing)
+updateSlotTime(slotName, newMinutes) {
+    const today = new Date().toISOString().split('T')[0];
+    this.initializeTodayRecord();
+
+    // First get current total
+    const currentData = this.getTodayData();
+    const currentSlotTime = currentData[slotName] || 0;
+    const difference = newMinutes - currentSlotTime;
+
+    const stmt = this.db.prepare(`
+        UPDATE daily_data 
+        SET ${slotName} = ?, 
+            total_minutes = total_minutes + ?,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE date = ?
+    `);
+    
+    return stmt.run(newMinutes, difference, today);
+}
+
     // Update notes for today
     updateTodayNotes(notes) {
         const today = new Date().toISOString().split('T')[0];

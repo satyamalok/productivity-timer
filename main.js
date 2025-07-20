@@ -220,12 +220,20 @@ ipcMain.handle('add-time-to-slot', (event, slotName, minutes) => {
   return global.db.addTimeToSlot(slotName, minutes);
 });
 
+ipcMain.handle('update-slot-time', (event, slotName, newMinutes) => {
+  return global.db.updateSlotTime(slotName, newMinutes);
+});
+
 ipcMain.handle('update-today-notes', (event, notes) => {
   return global.db.updateTodayNotes(notes);
 });
 
 ipcMain.handle('get-setting', (event, settingName) => {
   return global.db.getSetting(settingName);
+});
+
+ipcMain.handle('update-setting', (event, settingName, settingValue) => {
+  return global.db.updateSetting(settingName, settingValue);
 });
 
 // Alarm IPC handlers

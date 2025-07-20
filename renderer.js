@@ -143,6 +143,10 @@ async function updateStatsDisplay() {
         todayTotal.textContent = 'Error';
         weekTotal.textContent = 'Error';
     }
+
+    // Update main slots display
+updateMainSlotsDisplay();
+
 }
 
 // Format time for display
@@ -551,6 +555,23 @@ function setupEnhancedUI() {
     
     // Update week label with week number
     updateWeekLabel();
+
+    // Setup settings modal
+const showSettingsBtn = document.getElementById('showSettingsBtn');
+const settingsModal = document.getElementById('settingsModal');
+const closeSettingsBtn = document.getElementById('closeSettingsBtn');
+
+showSettingsBtn.addEventListener('click', showSettingsModal);
+closeSettingsBtn.addEventListener('click', () => {
+    settingsModal.style.display = 'none';
+});
+
+// Close modal when clicking outside
+settingsModal.addEventListener('click', (e) => {
+    if (e.target === settingsModal) {
+        settingsModal.style.display = 'none';
+    }
+});
 }
 
 async function updateCurrentSlot() {
@@ -596,6 +617,13 @@ async function showTodaySlots() {
         document.getElementById('modalCurrentSlot').textContent = currentSlot;
         document.getElementById('modalTodayTotal').textContent = formatTime(todayData?.total_minutes || 0);
         
+        // Load existing notes
+        const notesTextarea = document.getElementById('todayNotes');
+        notesTextarea.value = todayData?.notes || '';
+        
+        // Setup notes save button
+        setupNotesSaving();
+        
         // Populate slots grid
         populateSlotsGrid(hourlyBreakdown);
         
@@ -607,6 +635,39 @@ async function showTodaySlots() {
     }
 }
 
+function setupNotesSaving() {
+    const saveNotesBtn = document.getElementById('saveNotesBtn');
+    const notesTextarea = document.getElementById('todayNotes');
+    
+    // Remove existing listeners
+    saveNotesBtn.replaceWith(saveNotesBtn.cloneNode(true));
+    const newSaveBtn = document.getElementById('saveNotesBtn');
+    
+    newSaveBtn.addEventListener('click', async () => {
+        try {
+            const notes = notesTextarea.value.trim();
+            
+            // Save notes to database
+            await ipcRenderer.invoke('update-today-notes', notes);
+            
+            // Visual feedback
+            newSaveBtn.textContent = '✅ Saved!';
+            newSaveBtn.classList.add('notes-saved');
+            
+            setTimeout(() => {
+                newSaveBtn.textContent = '💾 Save Notes';
+                newSaveBtn.classList.remove('notes-saved');
+            }, 2000);
+            
+            console.log('📝 Notes saved successfully');
+            
+        } catch (error) {
+            console.error('Error saving notes:', error);
+            showNotification('Error', 'Failed to save notes', 'error');
+        }
+    });
+}
+
 function populateSlotsGrid(hourlyBreakdown) {
     const slotsGrid = document.getElementById('slotsGrid');
     
@@ -615,20 +676,147 @@ function populateSlotsGrid(hourlyBreakdown) {
             <div class="no-slots-message">
                 <p>No recorded time slots for today yet.</p>
                 <p>Start your timer to begin tracking!</p>
+                <button id="addManualEntryBtn" class="btn btn-manual">➕ Add Manual Entry</button>
             </div>
         `;
+        
+        // Setup manual entry button
+        document.getElementById('addManualEntryBtn').addEventListener('click', showManualEntryDialog);
         return;
     }
     
     slotsGrid.innerHTML = hourlyBreakdown.map(slot => `
-        <div class="slot-card">
+        <div class="slot-card" data-slot="${slot.field}">
             <div class="slot-name">${slot.name}</div>
-            <div class="slot-duration">${formatTime(slot.minutes)}</div>
+            <div class="slot-duration" onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name}')">${formatTime(slot.minutes)}</div>
             <div class="slot-progress">
                 <div class="progress-bar" style="width: ${Math.min((slot.minutes / 60) * 100, 100)}%"></div>
             </div>
+            <button class="edit-slot-btn" onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name}')">✏️</button>
         </div>
-    `).join('');
+    `).join('') + `
+        <div class="slot-card add-entry-card">
+            <button id="addManualEntryBtn" class="btn btn-manual">➕ Add Manual Entry</button>
+        </div>
+    `;
+    
+    // Setup manual entry button
+    document.getElementById('addManualEntryBtn').addEventListener('click', showManualEntryDialog);
+}
+
+async function editSlotTime(slotField, currentMinutes, slotName) {
+    const newMinutes = prompt(
+        `Edit time for ${slotName}\n\nCurrent: ${formatTime(currentMinutes)}\n\nEnter new duration in minutes:`,
+        currentMinutes.toString()
+    );
+    
+    if (newMinutes === null) return; // User cancelled
+    
+    const minutes = parseInt(newMinutes);
+    if (isNaN(minutes) || minutes < 0) {
+        showNotification('Invalid Input', 'Please enter a valid number of minutes', 'error');
+        return;
+    }
+    
+    try {
+        // Get current data
+        const todayData = await ipcRenderer.invoke('get-today-data');
+        const oldMinutes = currentMinutes;
+        const difference = minutes - oldMinutes;
+        
+        // Update the specific slot
+        await ipcRenderer.invoke('update-slot-time', slotField, minutes);
+        
+        // Refresh the display
+        const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
+        populateSlotsGrid(hourlyBreakdown);
+        
+        // Update stats
+        updateStatsDisplay();
+        
+        showNotification('Time Updated!', 
+            `${slotName}: ${formatTime(oldMinutes)} → ${formatTime(minutes)}\nDifference: ${difference > 0 ? '+' : ''}${difference} minutes`, 
+            'success'
+        );
+        
+    } catch (error) {
+        console.error('Error updating slot time:', error);
+        showNotification('Error', 'Failed to update time', 'error');
+    }
+}
+
+async function showManualEntryDialog() {
+    // Create time slots array for selection
+    const timeSlots = [
+        { value: 'slot_5_6_am', label: '5-6 AM' },
+        { value: 'slot_6_7_am', label: '6-7 AM' },
+        { value: 'slot_7_8_am', label: '7-8 AM' },
+        { value: 'slot_8_9_am', label: '8-9 AM' },
+        { value: 'slot_9_10_am', label: '9-10 AM' },
+        { value: 'slot_10_11_am', label: '10-11 AM' },
+        { value: 'slot_11_12_am', label: '11-12 PM' },
+        { value: 'slot_12_1_pm', label: '12-1 PM' },
+        { value: 'slot_1_2_pm', label: '1-2 PM' },
+        { value: 'slot_2_3_pm', label: '2-3 PM' },
+        { value: 'slot_3_4_pm', label: '3-4 PM' },
+        { value: 'slot_4_5_pm', label: '4-5 PM' },
+        { value: 'slot_5_6_pm', label: '5-6 PM' },
+        { value: 'slot_6_7_pm', label: '6-7 PM' },
+        { value: 'slot_7_8_pm', label: '7-8 PM' },
+        { value: 'slot_8_9_pm', label: '8-9 PM' },
+        { value: 'other_time', label: 'Other Time' }
+    ];
+    
+    // Create selection dialog
+    const slotOptions = timeSlots.map((slot, index) => `${index + 1}. ${slot.label}`).join('\n');
+    
+    const slotChoice = prompt(
+        `Select time slot:\n\n${slotOptions}\n\nEnter slot number (1-${timeSlots.length}):`
+    );
+    
+    if (slotChoice === null) return;
+    
+    const slotIndex = parseInt(slotChoice) - 1;
+    if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= timeSlots.length) {
+        showNotification('Invalid Selection', 'Please enter a valid slot number', 'error');
+        return;
+    }
+    
+    const selectedSlot = timeSlots[slotIndex];
+    
+    const minutes = prompt(
+        `Add time to ${selectedSlot.label}\n\nEnter minutes to add:`,
+        '30'
+    );
+    
+    if (minutes === null) return;
+    
+    const addMinutes = parseInt(minutes);
+    if (isNaN(addMinutes) || addMinutes <= 0) {
+        showNotification('Invalid Input', 'Please enter a valid number of minutes', 'error');
+        return;
+    }
+    
+    try {
+        // Add time to the selected slot
+        await ipcRenderer.invoke('add-time-to-slot', selectedSlot.value, addMinutes);
+        
+        // Refresh the display
+        const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
+        populateSlotsGrid(hourlyBreakdown);
+        
+        // Update stats
+        updateStatsDisplay();
+        
+        showNotification('Time Added!', 
+            `Added ${addMinutes} minutes to ${selectedSlot.label}`, 
+            'success'
+        );
+        
+    } catch (error) {
+        console.error('Error adding manual time:', error);
+        showNotification('Error', 'Failed to add time', 'error');
+    }
 }
 
 // Data Management functionality
@@ -1096,3 +1284,109 @@ document.addEventListener('DOMContentLoaded', () => {
     
     console.log('✅ App initialization complete');
 });
+
+async function showSettingsModal() {
+    try {
+        const settingsModal = document.getElementById('settingsModal');
+        
+        // Update data statistics
+        await updateDataStatistics();
+        
+        // Setup data management buttons (move from old location)
+        setupDataManagementInSettings();
+        
+        // Setup PIN change functionality
+        setupPINChange();
+        
+        // Show modal
+        settingsModal.style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error showing settings modal:', error);
+    }
+}
+
+function setupDataManagementInSettings() {
+    const exportBtn = document.getElementById('exportBtn');
+    const importBtn = document.getElementById('importBtn');
+    const backupBtn = document.getElementById('backupBtn');
+    
+    // Remove existing listeners and add new ones
+    exportBtn.replaceWith(exportBtn.cloneNode(true));
+    importBtn.replaceWith(importBtn.cloneNode(true));
+    backupBtn.replaceWith(backupBtn.cloneNode(true));
+    
+    document.getElementById('exportBtn').addEventListener('click', exportData);
+    document.getElementById('importBtn').addEventListener('click', importData);
+    document.getElementById('backupBtn').addEventListener('click', createBackup);
+}
+
+function setupPINChange() {
+    const changePinBtn = document.getElementById('changePinBtn');
+    const newPinInput = document.getElementById('newPin');
+    
+    changePinBtn.addEventListener('click', async () => {
+        const newPin = newPinInput.value.trim();
+        
+        if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+            showNotification('Invalid PIN', 'PIN must be exactly 4 digits', 'error');
+            return;
+        }
+        
+        try {
+            await ipcRenderer.invoke('update-setting', 'app_pin', newPin);
+            
+            showNotification('PIN Updated!', 'Your app PIN has been changed successfully', 'success');
+            newPinInput.value = '';
+            
+        } catch (error) {
+            console.error('Error updating PIN:', error);
+            showNotification('Error', 'Failed to update PIN', 'error');
+        }
+    });
+    
+    // Enter key support
+    newPinInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            changePinBtn.click();
+        }
+    });
+}
+
+async function updateMainSlotsDisplay() {
+    try {
+        const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
+        const mainSlotsContainer = document.getElementById('mainSlotsContainer');
+        
+        if (!hourlyBreakdown || hourlyBreakdown.length === 0) {
+            mainSlotsContainer.innerHTML = `
+                <div class="no-slots-today">
+                    <p>No time recorded yet today</p>
+                </div>
+            `;
+            return;
+        }
+        
+        // Sort slots in chronological order
+        const sortedSlots = hourlyBreakdown.sort((a, b) => {
+            const orderMap = {
+                'slot_5_6_am': 1, 'slot_6_7_am': 2, 'slot_7_8_am': 3, 'slot_8_9_am': 4,
+                'slot_9_10_am': 5, 'slot_10_11_am': 6, 'slot_11_12_am': 7, 'slot_12_1_pm': 8,
+                'slot_1_2_pm': 9, 'slot_2_3_pm': 10, 'slot_3_4_pm': 11, 'slot_4_5_pm': 12,
+                'slot_5_6_pm': 13, 'slot_6_7_pm': 14, 'slot_7_8_pm': 15, 'slot_8_9_pm': 16,
+                'other_time': 17
+            };
+            return (orderMap[a.field] || 99) - (orderMap[b.field] || 99);
+        });
+        
+        mainSlotsContainer.innerHTML = sortedSlots.map(slot => `
+            <div class="main-slot-card" onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name}')">
+                <div class="main-slot-name">${slot.name}</div>
+                <div class="main-slot-time">${formatTime(slot.minutes)}</div>
+            </div>
+        `).join('');
+        
+    } catch (error) {
+        console.error('Error updating main slots display:', error);
+    }
+}

@@ -513,6 +513,68 @@ main {
     box-shadow: 0 5px 15px rgba(0,0,0,0.1);
 }
 
+.slot-card {
+    position: relative;
+}
+
+.edit-slot-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: rgba(52, 152, 219, 0.8);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 25px;
+    height: 25px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.3s ease;
+}
+
+.slot-card:hover .edit-slot-btn {
+    opacity: 1;
+}
+
+.edit-slot-btn:hover {
+    background: rgba(52, 152, 219, 1);
+    transform: scale(1.1);
+}
+
+.slot-duration {
+    cursor: pointer;
+    transition: color 0.3s ease;
+}
+
+.slot-duration:hover {
+    color: #3498db;
+}
+
+.add-entry-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #bdc3c7;
+    background: transparent;
+}
+
+.btn-manual {
+    background: linear-gradient(45deg, #27ae60, #2ecc71);
+    color: white;
+    border: none;
+    padding: 10px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.btn-manual:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(39, 174, 96, 0.4);
+}
+
 .slot-name {
     font-weight: bold;
     color: #2c3e50;
@@ -907,5 +969,217 @@ main {
     .pin-actions .btn {
         width: 100%;
         max-width: 200px;
+    }
+}
+
+/* Notes Section Styles */
+.notes-section {
+    margin: 20px 0;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.notes-section h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.1rem;
+}
+
+.notes-input {
+    width: 100%;
+    min-height: 80px;
+    padding: 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: 0.95rem;
+    resize: vertical;
+    transition: border-color 0.3s ease;
+}
+
+.notes-input:focus {
+    outline: none;
+    border-color: #3498db;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.btn-notes {
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    color: white;
+    margin-top: 10px;
+    font-size: 0.9rem;
+    padding: 8px 16px;
+}
+
+.btn-notes:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+}
+
+.notes-saved {
+    background: linear-gradient(45deg, #27ae60, #2ecc71) !important;
+}
+
+/* Settings Modal Styles */
+.settings-content {
+    max-width: 600px;
+    max-height: 80vh;
+}
+
+.settings-section {
+    margin-bottom: 30px;
+    padding: 20px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.settings-section h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 8px;
+}
+
+.btn-settings {
+    background: linear-gradient(45deg, #95a5a6, #7f8c8d);
+    color: white;
+    margin-left: 10px;
+}
+
+.btn-settings:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(149, 165, 166, 0.4);
+}
+
+/* PIN Settings */
+.pin-settings {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.pin-settings label {
+    font-weight: bold;
+    color: #2c3e50;
+}
+
+.pin-change-input {
+    padding: 8px 12px;
+    border: 2px solid #e9ecef;
+    border-radius: 8px;
+    font-size: 1rem;
+    width: 150px;
+    text-align: center;
+    letter-spacing: 2px;
+}
+
+.pin-change-input:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+.btn-pin {
+    background: linear-gradient(45deg, #e74c3c, #c0392b);
+    color: white;
+    font-size: 0.9rem;
+    padding: 8px 16px;
+}
+
+.btn-pin:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(231, 76, 60, 0.4);
+}
+
+/* App Info */
+.app-info .info-item {
+    padding: 8px 0;
+    font-size: 0.95rem;
+}
+
+/* Main UI Today's Slots */
+.main-slots-section {
+    grid-column: 1 / -1;
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 20px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    margin-top: 20px;
+}
+
+.main-slots-section h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.3rem;
+    text-align: center;
+}
+
+.main-slots-container {
+    display: flex;
+    gap: 10px;
+    overflow-x: auto;
+    padding: 10px 0;
+    min-height: 60px;
+    align-items: center;
+}
+
+.main-slot-card {
+    min-width: 120px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 12px;
+    border-radius: 12px;
+    text-align: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.2);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    flex-shrink: 0;
+}
+
+.main-slot-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+
+.main-slot-name {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    margin-bottom: 4px;
+}
+
+.main-slot-time {
+    font-size: 1rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+}
+
+.no-slots-today {
+    width: 100%;
+    text-align: center;
+    color: #7f8c8d;
+    font-style: italic;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    main {
+        grid-template-columns: 1fr;
+        gap: 20px;
+    }
+    
+    .main-slots-section {
+        margin-top: 0;
+    }
+    
+    .main-slots-container {
+        justify-content: center;
+    }
+    
+    .main-slot-card {
+        min-width: 100px;
     }
 }

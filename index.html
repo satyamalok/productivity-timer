@@ -47,33 +47,24 @@
                         <span id="weekTotal">0H 0M</span>
                     </div>
                     <div class="ranking-actions">
-                        <button id="showRankingBtn" class="btn btn-ranking">📊 Weekly Ranking</button>
-                        <!-- NEW: Added Today's Slots button -->
-                        <button id="showTodayBtn" class="btn btn-today">📋 Today's Slots</button>
-                    </div>
+    <button id="showRankingBtn" class="btn btn-ranking">📊 Weekly Ranking</button>
+    <button id="showTodayBtn" class="btn btn-today">📋 Today's Slots</button>
+    <!-- NEW: Settings Button -->
+    <button id="showSettingsBtn" class="btn btn-settings">⚙️ Settings</button>
+</div>
                 </div>
             </div>
             <!-- NEW: Data Management Section -->
-            <div class="data-management-section">
-                <div class="data-actions">
-                    <h3>Data Management</h3>
-                    <div class="action-buttons">
-                        <button id="exportBtn" class="btn btn-export">📤 Export Data</button>
-                        <button id="importBtn" class="btn btn-import">📥 Import Data</button>
-                        <button id="backupBtn" class="btn btn-backup">💾 Backup</button>
-                    </div>
-                    <div class="data-info">
-                        <div class="info-item">
-                            <span>Total Days:</span>
-                            <span id="totalDays">0</span>
-                        </div>
-                        <div class="info-item">
-                            <span>Total Hours:</span>
-                            <span id="totalHours">0H 0M</span>
-                        </div>
-                    </div>
-                </div>
-            </div>
+         <!-- Today's Slots in Main UI -->
+<div class="main-slots-section">
+    <h3>📋 Today's Time Slots</h3>
+    <div class="main-slots-container" id="mainSlotsContainer">
+        <div class="no-slots-today">
+            <p>No time recorded yet today</p>
+        </div>
+    </div>
+</div>
+            
         </main>
     </div>
 
@@ -123,27 +114,91 @@
 </div>
 
     <!-- NEW: Today's Slots Modal -->
-    <div id="todayModal" class="ranking-modal" style="display: none;">
-        <div class="ranking-content">
-            <div class="ranking-header">
-                <h2>📋 Today's Time Slots</h2>
-                <button id="closeTodayBtn" class="close-btn">&times;</button>
+    <!-- Today's Slots Modal -->
+<div id="todayModal" class="ranking-modal" style="display: none;">
+    <div class="ranking-content">
+        <div class="ranking-header">
+            <h2>📋 Today's Time Slots</h2>
+            <button id="closeTodayBtn" class="close-btn">&times;</button>
+        </div>
+        <div class="today-summary">
+            <div class="summary-item">
+                <span>Current Slot:</span>
+                <span id="modalCurrentSlot">--</span>
             </div>
-            <div class="today-summary">
-                <div class="summary-item">
-                    <span>Current Slot:</span>
-                    <span id="modalCurrentSlot">--</span>
+            <div class="summary-item">
+                <span>Total Today:</span>
+                <span id="modalTodayTotal">0H 0M</span>
+            </div>
+        </div>
+        
+        <!-- NEW: Notes Section -->
+        <div class="notes-section">
+            <h3>📝 Today's Notes</h3>
+            <textarea id="todayNotes" class="notes-input" placeholder="Add notes about today's work..."></textarea>
+            <button id="saveNotesBtn" class="btn btn-notes">💾 Save Notes</button>
+        </div>
+        
+        <div class="slots-grid" id="slotsGrid">
+            <!-- Slots will be populated here -->
+        </div>
+    </div>
+</div>
+
+<!-- Settings Modal -->
+<div id="settingsModal" class="ranking-modal" style="display: none;">
+    <div class="ranking-content settings-content">
+        <div class="ranking-header">
+            <h2>⚙️ Settings & Data Management</h2>
+            <button id="closeSettingsBtn" class="close-btn">&times;</button>
+        </div>
+        
+        <!-- Data Management Section -->
+        <div class="settings-section">
+            <h3>📁 Data Management</h3>
+            <div class="action-buttons">
+                <button id="exportBtn" class="btn btn-export">📤 Export Data</button>
+                <button id="importBtn" class="btn btn-import">📥 Import Data</button>
+                <button id="backupBtn" class="btn btn-backup">💾 Backup</button>
+            </div>
+            <div class="data-info">
+                <div class="info-item">
+                    <span>Total Days:</span>
+                    <span id="totalDays">0</span>
                 </div>
-                <div class="summary-item">
-                    <span>Total Today:</span>
-                    <span id="modalTodayTotal">0H 0M</span>
+                <div class="info-item">
+                    <span>Total Hours:</span>
+                    <span id="totalHours">0H 0M</span>
                 </div>
             </div>
-            <div class="slots-grid" id="slotsGrid">
-                <!-- Slots will be populated here -->
+        </div>
+        
+        <!-- PIN Settings Section -->
+        <div class="settings-section">
+            <h3>🔐 Security Settings</h3>
+            <div class="pin-settings">
+                <label for="newPin">Change App PIN:</label>
+                <input type="password" id="newPin" class="pin-change-input" maxlength="4" placeholder="Enter new 4-digit PIN">
+                <button id="changePinBtn" class="btn btn-pin">🔑 Change PIN</button>
+            </div>
+        </div>
+        
+        <!-- App Info Section -->
+        <div class="settings-section">
+            <h3>ℹ️ App Information</h3>
+            <div class="app-info">
+                <div class="info-item">
+                    <span>Version:</span>
+                    <span>1.0.0</span>
+                </div>
+                <div class="info-item">
+                    <span>Database:</span>
+                    <span>SQLite</span>
+                </div>
             </div>
         </div>
     </div>
+</div>
 
     <script src="renderer.js"></script>
 </body>

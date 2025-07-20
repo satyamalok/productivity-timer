@@ -681,18 +681,18 @@ function populateSlotsGrid(hourlyBreakdown) {
         `;
         
         // Setup manual entry button
-        document.getElementById('addManualEntryBtn').addEventListener('click', showManualEntryDialog);
+        setupManualEntryButton();
         return;
     }
     
-    slotsGrid.innerHTML = hourlyBreakdown.map(slot => `
+    slotsGrid.innerHTML = hourlyBreakdown.map((slot, index) => `
         <div class="slot-card" data-slot="${slot.field}">
             <div class="slot-name">${slot.name}</div>
-            <div class="slot-duration" onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name}')">${formatTime(slot.minutes)}</div>
+            <div class="slot-duration slot-clickable" data-slot="${slot.field}" data-minutes="${slot.minutes}" data-name="${slot.name}">${formatTime(slot.minutes)}</div>
             <div class="slot-progress">
                 <div class="progress-bar" style="width: ${Math.min((slot.minutes / 60) * 100, 100)}%"></div>
             </div>
-            <button class="edit-slot-btn" onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name}')">✏️</button>
+            <button class="edit-slot-btn" data-slot="${slot.field}" data-minutes="${slot.minutes}" data-name="${slot.name}">✏️</button>
         </div>
     `).join('') + `
         <div class="slot-card add-entry-card">
@@ -700,8 +700,9 @@ function populateSlotsGrid(hourlyBreakdown) {
         </div>
     `;
     
-    // Setup manual entry button
-    document.getElementById('addManualEntryBtn').addEventListener('click', showManualEntryDialog);
+    // Setup event listeners for edit buttons and clickable durations
+    setupSlotEditListeners();
+    setupManualEntryButton();
 }
 
 async function editSlotTime(slotField, currentMinutes, slotName) {
@@ -719,11 +720,6 @@ async function editSlotTime(slotField, currentMinutes, slotName) {
     }
     
     try {
-        // Get current data
-        const todayData = await ipcRenderer.invoke('get-today-data');
-        const oldMinutes = currentMinutes;
-        const difference = minutes - oldMinutes;
-        
         // Update the specific slot
         await ipcRenderer.invoke('update-slot-time', slotField, minutes);
         
@@ -731,11 +727,11 @@ async function editSlotTime(slotField, currentMinutes, slotName) {
         const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
         populateSlotsGrid(hourlyBreakdown);
         
-        // Update stats
+        // Update stats and main slots
         updateStatsDisplay();
         
         showNotification('Time Updated!', 
-            `${slotName}: ${formatTime(oldMinutes)} → ${formatTime(minutes)}\nDifference: ${difference > 0 ? '+' : ''}${difference} minutes`, 
+            `${slotName}: ${formatTime(currentMinutes)} → ${formatTime(minutes)}`, 
             'success'
         );
         
@@ -746,50 +742,34 @@ async function editSlotTime(slotField, currentMinutes, slotName) {
 }
 
 async function showManualEntryDialog() {
-    // Create time slots array for selection
-    const timeSlots = [
-        { value: 'slot_5_6_am', label: '5-6 AM' },
-        { value: 'slot_6_7_am', label: '6-7 AM' },
-        { value: 'slot_7_8_am', label: '7-8 AM' },
-        { value: 'slot_8_9_am', label: '8-9 AM' },
-        { value: 'slot_9_10_am', label: '9-10 AM' },
-        { value: 'slot_10_11_am', label: '10-11 AM' },
-        { value: 'slot_11_12_am', label: '11-12 PM' },
-        { value: 'slot_12_1_pm', label: '12-1 PM' },
-        { value: 'slot_1_2_pm', label: '1-2 PM' },
-        { value: 'slot_2_3_pm', label: '2-3 PM' },
-        { value: 'slot_3_4_pm', label: '3-4 PM' },
-        { value: 'slot_4_5_pm', label: '4-5 PM' },
-        { value: 'slot_5_6_pm', label: '5-6 PM' },
-        { value: 'slot_6_7_pm', label: '6-7 PM' },
-        { value: 'slot_7_8_pm', label: '7-8 PM' },
-        { value: 'slot_8_9_pm', label: '8-9 PM' },
-        { value: 'other_time', label: 'Other Time' }
-    ];
-    
-    // Create selection dialog
-    const slotOptions = timeSlots.map((slot, index) => `${index + 1}. ${slot.label}`).join('\n');
-    
-    const slotChoice = prompt(
-        `Select time slot:\n\n${slotOptions}\n\nEnter slot number (1-${timeSlots.length}):`
+    // Simple approach - ask for slot and minutes
+    const slotName = prompt(
+        `Which time slot would you like to add time to?\n\nEnter one of:\n` +
+        `5-6 AM, 6-7 AM, 7-8 AM, 8-9 AM, 9-10 AM, 10-11 AM, 11-12 PM,\n` +
+        `12-1 PM, 1-2 PM, 2-3 PM, 3-4 PM, 4-5 PM, 5-6 PM, 6-7 PM, 7-8 PM, 8-9 PM, Other\n\n` +
+        `Example: "10-11 AM" or "Other"`
     );
     
-    if (slotChoice === null) return;
+    if (!slotName) return;
     
-    const slotIndex = parseInt(slotChoice) - 1;
-    if (isNaN(slotIndex) || slotIndex < 0 || slotIndex >= timeSlots.length) {
-        showNotification('Invalid Selection', 'Please enter a valid slot number', 'error');
+    // Map user input to database field names
+    const slotMap = {
+        '5-6 AM': 'slot_5_6_am', '6-7 AM': 'slot_6_7_am', '7-8 AM': 'slot_7_8_am',
+        '8-9 AM': 'slot_8_9_am', '9-10 AM': 'slot_9_10_am', '10-11 AM': 'slot_10_11_am',
+        '11-12 PM': 'slot_11_12_am', '12-1 PM': 'slot_12_1_pm', '1-2 PM': 'slot_1_2_pm',
+        '2-3 PM': 'slot_2_3_pm', '3-4 PM': 'slot_3_4_pm', '4-5 PM': 'slot_4_5_pm',
+        '5-6 PM': 'slot_5_6_pm', '6-7 PM': 'slot_6_7_pm', '7-8 PM': 'slot_7_8_pm',
+        '8-9 PM': 'slot_8_9_pm', 'Other': 'other_time'
+    };
+    
+    const slotField = slotMap[slotName.trim()];
+    if (!slotField) {
+        showNotification('Invalid Slot', 'Please enter a valid time slot name', 'error');
         return;
     }
     
-    const selectedSlot = timeSlots[slotIndex];
-    
-    const minutes = prompt(
-        `Add time to ${selectedSlot.label}\n\nEnter minutes to add:`,
-        '30'
-    );
-    
-    if (minutes === null) return;
+    const minutes = prompt(`How many minutes would you like to add to ${slotName}?`, '30');
+    if (!minutes) return;
     
     const addMinutes = parseInt(minutes);
     if (isNaN(addMinutes) || addMinutes <= 0) {
@@ -799,7 +779,7 @@ async function showManualEntryDialog() {
     
     try {
         // Add time to the selected slot
-        await ipcRenderer.invoke('add-time-to-slot', selectedSlot.value, addMinutes);
+        await ipcRenderer.invoke('add-time-to-slot', slotField, addMinutes);
         
         // Refresh the display
         const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
@@ -809,13 +789,43 @@ async function showManualEntryDialog() {
         updateStatsDisplay();
         
         showNotification('Time Added!', 
-            `Added ${addMinutes} minutes to ${selectedSlot.label}`, 
+            `Added ${addMinutes} minutes to ${slotName}`, 
             'success'
         );
         
     } catch (error) {
         console.error('Error adding manual time:', error);
         showNotification('Error', 'Failed to add time', 'error');
+    }
+}
+
+function setupSlotEditListeners() {
+    // Edit buttons
+    document.querySelectorAll('.edit-slot-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const slotField = btn.getAttribute('data-slot');
+            const minutes = parseInt(btn.getAttribute('data-minutes'));
+            const slotName = btn.getAttribute('data-name');
+            editSlotTime(slotField, minutes, slotName);
+        });
+    });
+    
+    // Clickable durations
+    document.querySelectorAll('.slot-clickable').forEach(duration => {
+        duration.addEventListener('click', (e) => {
+            const slotField = duration.getAttribute('data-slot');
+            const minutes = parseInt(duration.getAttribute('data-minutes'));
+            const slotName = duration.getAttribute('data-name');
+            editSlotTime(slotField, minutes, slotName);
+        });
+    });
+}
+
+function setupManualEntryButton() {
+    const addBtn = document.getElementById('addManualEntryBtn');
+    if (addBtn) {
+        addBtn.addEventListener('click', showManualEntryDialog);
     }
 }
 

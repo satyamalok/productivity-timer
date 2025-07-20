@@ -104,6 +104,24 @@
         </div>
     </div>
 
+    <!-- PIN Protection Modal -->
+<div id="pinModal" class="pin-modal" style="display: none;">
+    <div class="pin-content">
+        <div class="pin-header">
+            <h2>🔐 Enter PIN to Close App</h2>
+        </div>
+        <div class="pin-input-section">
+            <p>Enter your 4-digit PIN to close the application:</p>
+            <input type="password" id="pinInput" class="pin-input" maxlength="4" placeholder="••••">
+            <div class="pin-error" id="pinError" style="display: none;">Incorrect PIN. Try again.</div>
+        </div>
+        <div class="pin-actions">
+            <button id="pinSubmitBtn" class="btn btn-primary">✓ Close App</button>
+            <button id="pinCancelBtn" class="btn btn-secondary">✗ Cancel</button>
+        </div>
+    </div>
+</div>
+
     <!-- NEW: Today's Slots Modal -->
     <div id="todayModal" class="ranking-modal" style="display: none;">
         <div class="ranking-content">

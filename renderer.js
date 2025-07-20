@@ -106,38 +106,7 @@ async function pauseTimer() {
 }
 
 async function stopTimer() {
-    if (isRunning || elapsedTime > 0) {
-        clearInterval(timerInterval);
-        isRunning = false;
-        
-        // Save the elapsed time to database if there was any
-        if (elapsedTime > 0) {
-            const minutes = Math.floor(elapsedTime / (1000 * 60));
-            if (minutes > 0) {
-                try {
-                    await ipcRenderer.invoke('add-time-to-slot', currentHourSlot, minutes);
-                    console.log(`Saved ${minutes} minutes to ${currentHourSlot}`);
-                    
-                    // Update stats display
-                    updateStatsDisplay();
-                } catch (error) {
-                    console.error('Error saving time:', error);
-                }
-            }
-        }
-        
-        elapsedTime = 0;
-        
-        // Update button states
-        startBtn.disabled = false;
-        pauseBtn.disabled = true;
-        stopBtn.disabled = true;
-        
-        // Reset display
-        timerDisplay.textContent = '00:00:00';
-        
-        console.log('Timer stopped and data saved');
-    }
+    await stopTimerEnhanced();
 }
 
 function updateTimerDisplay() {
@@ -294,13 +263,16 @@ async function updateWeeklyRanking() {
         
         // Get current week rank
         const currentWeekRank = await ipcRenderer.invoke('get-current-week-rank');
+        const weekStats = await ipcRenderer.invoke('get-week-stats');
         
         // Update week total display with rank
-        if (currentWeekRank) {
-            weekTotal.textContent = `${currentWeekRank.total_hours_formatted} (Rank #${currentWeekRank.rank || 'Unranked'})`;
+        if (currentWeekRank && weekStats) {
+            const rankText = currentWeekRank.rank ? `#${currentWeekRank.rank}` : '#1';
+            const totalWeeks = weekStats.totalWeeks || 1;
+            weekTotal.textContent = `${currentWeekRank.total_hours_formatted || '0H 0M'} (Rank ${rankText}/${totalWeeks})`;
         }
         
-        console.log('Weekly ranking updated');
+        console.log('📊 Weekly ranking updated');
     } catch (error) {
         console.error('Error updating weekly ranking:', error);
     }
@@ -839,3 +811,212 @@ function getNotificationIcon(type) {
         default: return 'ℹ️';
     }
 }
+
+// Enhanced alarm handling with auto-recording
+ipcRenderer.on('show-alarm-dialog', async (event, timeString) => {
+    if (!isAlarmDialogOpen) {
+        await handleHourlyTransition(timeString);
+        showAlarmDialog(timeString);
+    }
+});
+
+async function handleHourlyTransition(alarmTimeString) {
+    console.log(`🔄 Hourly transition triggered at ${alarmTimeString}`);
+    
+    // If timer is running, we need to save the current session and reset
+    if (isRunning && elapsedTime > 0) {
+        const currentSessionMinutes = Math.floor(elapsedTime / (1000 * 60));
+        
+        if (currentSessionMinutes > 0) {
+            try {
+                // Save current session to the PREVIOUS hour slot
+                await ipcRenderer.invoke('add-time-to-slot', currentHourSlot, currentSessionMinutes);
+                console.log(`💾 Auto-saved ${currentSessionMinutes} minutes to ${currentHourSlot}`);
+                
+                // Reset timer for new hour
+                elapsedTime = 0;
+                startTime = Date.now(); // Reset start time for new hour
+                
+                // Update to new hour slot
+                const previousSlot = currentHourSlot;
+                determineCurrentHourSlot();
+                
+                console.log(`🕐 Switched from ${previousSlot} to ${currentHourSlot}`);
+                
+                // Update displays
+                updateStatsDisplay();
+                updateCurrentSlot();
+                
+            } catch (error) {
+                console.error('Error during hourly transition:', error);
+            }
+        }
+    } else {
+        // Timer not running, just update current slot
+        determineCurrentHourSlot();
+        updateCurrentSlot();
+    }
+}
+
+// Enhanced stop timer with better slot handling
+async function stopTimerEnhanced() {
+    if (isRunning || elapsedTime > 0) {
+        clearInterval(timerInterval);
+        isRunning = false;
+        
+        // Save the elapsed time to database if there was any
+        if (elapsedTime > 0) {
+            const minutes = Math.floor(elapsedTime / (1000 * 60));
+            if (minutes > 0) {
+                try {
+                    await ipcRenderer.invoke('add-time-to-slot', currentHourSlot, minutes);
+                    console.log(`💾 Manual save: ${minutes} minutes to ${currentHourSlot}`);
+                    
+                    // Update stats display
+                    updateStatsDisplay();
+                } catch (error) {
+                    console.error('Error saving time:', error);
+                }
+            }
+        }
+        
+        elapsedTime = 0;
+        
+        // Update button states
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        stopBtn.disabled = true;
+        
+        // Reset display
+        timerDisplay.textContent = '00:00:00';
+        
+        console.log('⏹️ Timer stopped and data saved');
+    }
+}
+
+// PIN Protection functionality
+function setupPINProtection() {
+    const pinModal = document.getElementById('pinModal');
+    const pinInput = document.getElementById('pinInput');
+    const pinSubmitBtn = document.getElementById('pinSubmitBtn');
+    const pinCancelBtn = document.getElementById('pinCancelBtn');
+    const pinError = document.getElementById('pinError');
+    
+    pinSubmitBtn.addEventListener('click', validatePIN);
+    pinCancelBtn.addEventListener('click', () => {
+        pinModal.style.display = 'none';
+        pinInput.value = '';
+        pinError.style.display = 'none';
+    });
+    
+    // Enter key to submit PIN
+    pinInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            validatePIN();
+        }
+    });
+    
+    // Auto-focus and clear error on input
+    pinInput.addEventListener('input', () => {
+        pinError.style.display = 'none';
+    });
+}
+
+async function showPINDialog() {
+    const pinModal = document.getElementById('pinModal');
+    const pinInput = document.getElementById('pinInput');
+    
+    pinModal.style.display = 'flex';
+    setTimeout(() => {
+        pinInput.focus();
+    }, 100);
+}
+
+async function validatePIN() {
+    const pinInput = document.getElementById('pinInput');
+    const pinError = document.getElementById('pinError');
+    const enteredPIN = pinInput.value;
+    
+    console.log(`🔐 Attempting to validate PIN: ${enteredPIN}`);
+    
+    if (enteredPIN.length !== 4) {
+        pinError.textContent = 'PIN must be 4 digits';
+        pinError.style.display = 'block';
+        return;
+    }
+    
+    try {
+        const isPINValid = await ipcRenderer.invoke('validate-pin', enteredPIN);
+        
+        if (isPINValid) {
+            // PIN correct - save data and close
+            console.log('✅ PIN correct - closing app');
+            await saveDataBeforeClose();
+            await ipcRenderer.invoke('close-app-confirmed');
+        } else {
+            // PIN incorrect
+            console.log('❌ PIN incorrect');
+            pinError.textContent = 'Incorrect PIN. Try again.';
+            pinError.style.display = 'block';
+            pinInput.value = '';
+            pinInput.focus();
+        }
+    } catch (error) {
+        console.error('PIN validation error:', error);
+        pinError.textContent = 'Error validating PIN';
+        pinError.style.display = 'block';
+    }
+}
+
+async function saveDataBeforeClose() {
+    // Stop timer and save any running session
+    if (isRunning) {
+        await stopTimerEnhanced();
+    }
+    
+    // Update weekly data one final time
+    await ipcRenderer.invoke('update-weekly-data');
+    
+    console.log('💾 Data saved before closing');
+}
+
+// Listen for close request from main process
+ipcRenderer.on('request-pin-for-close', () => {
+    showPINDialog();
+});
+
+// Enhanced hour transition detection - ADD THIS AS NEW CODE
+let lastCheckedHour = new Date().getHours();
+
+setInterval(async () => {
+    const currentHour = new Date().getHours();
+    
+    if (currentHour !== lastCheckedHour) {
+        console.log(`🕐 Hour changed from ${lastCheckedHour} to ${currentHour}`);
+        
+        // If timer is running during hour change, handle transition
+        if (isRunning) {
+            const sessionMinutes = Math.floor(elapsedTime / (1000 * 60));
+            if (sessionMinutes > 0) {
+                // Save to previous hour slot
+                await ipcRenderer.invoke('add-time-to-slot', currentHourSlot, sessionMinutes);
+                console.log(`🔄 Auto-transition save: ${sessionMinutes} minutes to ${currentHourSlot}`);
+                
+                // Reset for new hour
+                elapsedTime = 0;
+                startTime = Date.now();
+                
+                // Update current slot
+                determineCurrentHourSlot();
+                updateCurrentSlot();
+                updateStatsDisplay();
+            }
+        } else {
+            // Just update slot if timer not running
+            determineCurrentHourSlot();
+            updateCurrentSlot();
+        }
+        
+        lastCheckedHour = currentHour;
+    }
+}, 30000); // Check every 30 seconds

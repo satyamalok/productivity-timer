@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, Notification, nativeImage } = require('electron');
 const ProductivityDB = require('./database');
 const path = require('path');
 
@@ -120,11 +120,11 @@ setupHourlyAlarms();
   });
 
   // Handle close button - ask for PIN
-  mainWindow.on('close', (event) => {
+mainWindow.on('close', (event) => {
     event.preventDefault();
-    // We'll implement PIN dialog later
-    // For now, just minimize to tray
-    mainWindow.hide();
+    console.log('🔐 Close requested - showing PIN dialog');
+    // Send request to renderer for PIN
+    mainWindow.webContents.send('request-pin-for-close');
   });
 
   // Open DevTools in development
@@ -132,32 +132,49 @@ setupHourlyAlarms();
 }
 
 function createTray() {
-  // We'll add proper icon later, for now use default
-  tray = new Tray(path.join(__dirname, 'assets/tray-icon.png'));
-  
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show App',
-      click: () => {
-        mainWindow.show();
-      }
-    },
-    {
-      label: 'Quit',
-      click: () => {
-        // We'll implement PIN dialog here later
-        app.quit();
-      }
-    }
-  ]);
+    try {
+        // Try to create tray with icon, fall back to default if missing
+        let trayIconPath;
+        try {
+            trayIconPath = path.join(__dirname, 'assets/tray-icon.png');
+            // Test if file exists
+            require('fs').accessSync(trayIconPath);
+        } catch {
+            // Use default system icon if custom icon missing
+            trayIconPath = null;
+        }
+        
+        tray = trayIconPath ? new Tray(trayIconPath) : new Tray(nativeImage.createEmpty());
+        
+        const contextMenu = Menu.buildFromTemplate([
+            {
+                label: 'Show App',
+                click: () => {
+                    mainWindow.show();
+                }
+            },
+            {
+                label: 'Quit',
+                click: () => {
+                    // Send PIN request
+                    mainWindow.webContents.send('request-pin-for-close');
+                }
+            }
+        ]);
 
-  tray.setToolTip('Productivity Timer');
-  tray.setContextMenu(contextMenu);
-  
-  // Show window on tray click
-  tray.on('click', () => {
-    mainWindow.show();
-  });
+        tray.setToolTip('Productivity Timer');
+        tray.setContextMenu(contextMenu);
+        
+        // Show window on tray click
+        tray.on('click', () => {
+            mainWindow.show();
+        });
+        
+        console.log('✅ Tray created successfully');
+    } catch (error) {
+        console.log('⚠️ Tray creation failed, continuing without tray:', error.message);
+        // App can continue without tray
+    }
 }
 
 // App event handlers
@@ -306,4 +323,26 @@ ipcMain.handle('show-save-dialog', async (event, options) => {
   const { dialog } = require('electron');
   const result = await dialog.showSaveDialog(mainWindow, options);
   return result;
+});
+
+// PIN protection IPC handlers (ADD these to your existing IPC handlers)
+ipcMain.handle('close-app-confirmed', () => {
+    console.log('✅ PIN validated - closing app');
+    // Close database and quit app
+    if (global.db) {
+        global.db.close();
+    }
+    clearAllAlarms(); // Clear any pending alarms
+    app.quit();
+});
+
+ipcMain.handle('validate-pin', async (event, enteredPIN) => {
+    try {
+        const storedPIN = global.db.getSetting('app_pin');
+        console.log(`🔐 Validating PIN: entered=${enteredPIN}, stored=${storedPIN}`);
+        return enteredPIN === storedPIN;
+    } catch (error) {
+        console.error('PIN validation error:', error);
+        return false;
+    }
 });

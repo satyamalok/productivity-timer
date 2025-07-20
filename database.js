@@ -251,16 +251,16 @@ updateWeeklyData(forceRankingUpdate = false) {
 }
 
 // Update rankings for all weeks
+// Update rankings for all weeks (always ranked)
 updateAllWeekRankings() {
     // Get all weeks ordered by total minutes (descending)
     const allWeeks = this.db.prepare(`
         SELECT id, total_minutes, week_number, year
         FROM weekly_data 
-        WHERE total_minutes > 0
-        ORDER BY total_minutes DESC
+        ORDER BY total_minutes DESC, year DESC, week_number DESC
     `).all();
     
-    // Update rank for each week
+    // Update rank for each week (even if 0 minutes)
     const updateRankStmt = this.db.prepare(`
         UPDATE weekly_data 
         SET rank = ?, updated_at = CURRENT_TIMESTAMP
@@ -268,11 +268,11 @@ updateAllWeekRankings() {
     `);
     
     allWeeks.forEach((week, index) => {
-        const rank = index + 1; // Rank starts from 1
+        const rank = index + 1; // Rank starts from 1, never unranked
         updateRankStmt.run(rank, week.id);
     });
     
-    console.log(`Updated rankings for ${allWeeks.length} weeks`);
+    console.log(`✅ Updated rankings for ${allWeeks.length} weeks (all ranked)`);
 }
 
 // Get week date range

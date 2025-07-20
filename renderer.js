@@ -22,9 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
     updateDateDisplay();
     updateStatsDisplay();
     setupEventListeners();
-    setupRankingModal(); // Add this line
-    setupEnhancedUI(); // Add this line
-    setupDataManagement(); // Add this line
+    setupRankingModal();
+    setupEnhancedUI();
+    setupDataManagement();
+    setupPINProtection(); // ADD THIS LINE - was missing!
     determineCurrentHourSlot();
     
     // Update stats every minute
@@ -902,6 +903,11 @@ function setupPINProtection() {
     const pinCancelBtn = document.getElementById('pinCancelBtn');
     const pinError = document.getElementById('pinError');
     
+    if (!pinModal || !pinInput || !pinSubmitBtn || !pinCancelBtn || !pinError) {
+        console.error('❌ PIN modal elements not found in DOM');
+        return;
+    }
+    
     pinSubmitBtn.addEventListener('click', validatePIN);
     pinCancelBtn.addEventListener('click', () => {
         pinModal.style.display = 'none';
@@ -920,12 +926,20 @@ function setupPINProtection() {
     pinInput.addEventListener('input', () => {
         pinError.style.display = 'none';
     });
+    
+    console.log('✅ PIN protection setup complete');
 }
 
 async function showPINDialog() {
     const pinModal = document.getElementById('pinModal');
     const pinInput = document.getElementById('pinInput');
     
+    if (!pinModal || !pinInput) {
+        console.error('❌ PIN modal elements not found');
+        return;
+    }
+    
+    console.log('🔐 Showing PIN dialog');
     pinModal.style.display = 'flex';
     setTimeout(() => {
         pinInput.focus();
@@ -935,57 +949,76 @@ async function showPINDialog() {
 async function validatePIN() {
     const pinInput = document.getElementById('pinInput');
     const pinError = document.getElementById('pinError');
-    const enteredPIN = pinInput.value;
+    const enteredPIN = pinInput.value.trim();
     
     console.log(`🔐 Attempting to validate PIN: ${enteredPIN}`);
     
-    if (enteredPIN.length !== 4) {
+    if (enteredPIN.length !== 4 || !/^\d{4}$/.test(enteredPIN)) {
         pinError.textContent = 'PIN must be 4 digits';
         pinError.style.display = 'block';
+        pinInput.focus();
         return;
     }
     
     try {
+        console.log('🔍 Validating PIN with main process...');
         const isPINValid = await ipcRenderer.invoke('validate-pin', enteredPIN);
         
         if (isPINValid) {
             // PIN correct - save data and close
-            console.log('✅ PIN correct - closing app');
+            console.log('✅ PIN correct - preparing to close app');
+            pinError.style.display = 'none';
+            
+            // Show closing message
+            pinError.textContent = 'PIN correct! Closing app...';
+            pinError.style.color = '#27ae60';
+            pinError.style.display = 'block';
+            
             await saveDataBeforeClose();
             await ipcRenderer.invoke('close-app-confirmed');
         } else {
             // PIN incorrect
             console.log('❌ PIN incorrect');
             pinError.textContent = 'Incorrect PIN. Try again.';
+            pinError.style.color = '#e74c3c';
             pinError.style.display = 'block';
             pinInput.value = '';
             pinInput.focus();
         }
     } catch (error) {
         console.error('PIN validation error:', error);
-        pinError.textContent = 'Error validating PIN';
+        pinError.textContent = 'Error validating PIN. Please try again.';
+        pinError.style.color = '#e74c3c';
         pinError.style.display = 'block';
     }
 }
 
 async function saveDataBeforeClose() {
+    console.log('💾 Saving data before closing...');
+    
     // Stop timer and save any running session
     if (isRunning) {
         await stopTimerEnhanced();
     }
     
     // Update weekly data one final time
-    await ipcRenderer.invoke('update-weekly-data');
+    try {
+        await ipcRenderer.invoke('update-weekly-data');
+        console.log('📊 Weekly data updated before close');
+    } catch (error) {
+        console.error('Error updating weekly data before close:', error);
+    }
     
     console.log('💾 Data saved before closing');
 }
 
 // Listen for close request from main process
 ipcRenderer.on('request-pin-for-close', () => {
+    console.log('🔐 Received PIN request from main process');
     showPINDialog();
 });
 
-// Enhanced hour transition detection - ADD THIS AS NEW CODE
+// Enhanced hour transition detection
 let lastCheckedHour = new Date().getHours();
 
 setInterval(async () => {
@@ -1020,3 +1053,46 @@ setInterval(async () => {
         lastCheckedHour = currentHour;
     }
 }, 30000); // Check every 30 seconds
+
+// Error handling for missing DOM elements
+function checkDOMElements() {
+    const requiredElements = [
+        'timerDisplay', 'startBtn', 'pauseBtn', 'stopBtn',
+        'currentDate', 'todayTotal', 'weekTotal', 'currentSlot',
+        'pinModal', 'pinInput', 'pinSubmitBtn', 'pinCancelBtn', 'pinError'
+    ];
+    
+    const missingElements = requiredElements.filter(id => !document.getElementById(id));
+    
+    if (missingElements.length > 0) {
+        console.error('❌ Missing DOM elements:', missingElements);
+        return false;
+    }
+    
+    console.log('✅ All required DOM elements found');
+    return true;
+}
+
+// Add DOM check to initialization
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🚀 DOM Content Loaded - Initializing app...');
+    
+    if (!checkDOMElements()) {
+        console.error('❌ Cannot initialize app - missing DOM elements');
+        return;
+    }
+    
+    updateDateDisplay();
+    updateStatsDisplay();
+    setupEventListeners();
+    setupRankingModal();
+    setupEnhancedUI();
+    setupDataManagement();
+    setupPINProtection(); // This was the missing line!
+    determineCurrentHourSlot();
+    
+    // Update stats every minute
+    setInterval(updateStatsDisplay, 60000);
+    
+    console.log('✅ App initialization complete');
+});

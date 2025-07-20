@@ -8,6 +8,7 @@ let appPin = '1234'; // Default PIN, will be configurable later
 
 let alarmIntervals = [];
 let isAlarmsEnabled = true;
+let isAppClosing = false; // Add flag to prevent multiple close attempts
 
 function setupHourlyAlarms() {
   // Clear any existing alarms
@@ -106,10 +107,10 @@ function createWindow() {
   });
 
   // Initialize database
-global.db = new ProductivityDB();
+  global.db = new ProductivityDB();
 
-// Setup hourly alarms
-setupHourlyAlarms();
+  // Setup hourly alarms
+  setupHourlyAlarms();
 
   // Load the app
   mainWindow.loadFile('index.html');
@@ -120,7 +121,12 @@ setupHourlyAlarms();
   });
 
   // Handle close button - ask for PIN
-mainWindow.on('close', (event) => {
+  mainWindow.on('close', (event) => {
+    if (isAppClosing) {
+      // Allow actual close if we're in closing process
+      return;
+    }
+    
     event.preventDefault();
     console.log('🔐 Close requested - showing PIN dialog');
     // Send request to renderer for PIN
@@ -325,24 +331,107 @@ ipcMain.handle('show-save-dialog', async (event, options) => {
   return result;
 });
 
-// PIN protection IPC handlers (ADD these to your existing IPC handlers)
-ipcMain.handle('close-app-confirmed', () => {
+// PIN protection IPC handlers - FIXED VERSION
+ipcMain.handle('close-app-confirmed', async () => {
     console.log('✅ PIN validated - closing app');
-    // Close database and quit app
-    if (global.db) {
-        global.db.close();
+    
+    // Set closing flag to prevent further close events
+    isAppClosing = true;
+    
+    try {
+        // Clear any pending alarms
+        clearAllAlarms();
+        
+        // Close database connection
+        if (global.db) {
+            global.db.close();
+            global.db = null; // Clear the reference
+        }
+        
+        // Give a small delay to ensure cleanup
+        setTimeout(() => {
+            app.quit();
+        }, 100);
+        
+    } catch (error) {
+        console.error('Error during app closure:', error);
+        // Force quit even if there's an error
+        app.quit();
     }
-    clearAllAlarms(); // Clear any pending alarms
-    app.quit();
 });
 
 ipcMain.handle('validate-pin', async (event, enteredPIN) => {
     try {
+        // Check if database is still available
+        if (!global.db || !global.db.db) {
+            console.error('❌ Database not available for PIN validation');
+            return false;
+        }
+        
         const storedPIN = global.db.getSetting('app_pin');
         console.log(`🔐 Validating PIN: entered=${enteredPIN}, stored=${storedPIN}`);
+        
         return enteredPIN === storedPIN;
+        
     } catch (error) {
         console.error('PIN validation error:', error);
+        
+        // If database error, fall back to default PIN
+        if (error.message && error.message.includes('database connection is not open')) {
+            console.log('🔄 Database closed, using fallback PIN validation');
+            return enteredPIN === '1234'; // Default PIN fallback
+        }
+        
         return false;
     }
+});
+
+// Add cleanup on app quit
+app.on('before-quit', () => {
+    console.log('🧹 App before-quit - cleaning up...');
+    
+    // Clear alarms
+    clearAllAlarms();
+    
+    // Close database if still open
+    if (global.db && global.db.db && !isAppClosing) {
+        try {
+            global.db.close();
+        } catch (error) {
+            console.error('Error closing database on quit:', error);
+        }
+    }
+});
+
+// Handle process termination
+process.on('SIGINT', () => {
+    console.log('🛑 SIGINT received - cleaning up...');
+    
+    clearAllAlarms();
+    
+    if (global.db && global.db.db) {
+        try {
+            global.db.close();
+        } catch (error) {
+            console.error('Error closing database on SIGINT:', error);
+        }
+    }
+    
+    process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+    console.log('🛑 SIGTERM received - cleaning up...');
+    
+    clearAllAlarms();
+    
+    if (global.db && global.db.db) {
+        try {
+            global.db.close();
+        } catch (error) {
+            console.error('Error closing database on SIGTERM:', error);
+        }
+    }
+    
+    process.exit(0);
 });

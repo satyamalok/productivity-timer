@@ -394,6 +394,148 @@ ipcMain.handle('validate-pin', async (event, enteredPIN) => {
     }
 });
 
+// History IPC handlers - Add these to main.js
+
+// Get daily data for a specific month
+ipcMain.handle('get-daily-data-for-month', async (event, year, month) => {
+    try {
+        console.log(`📊 Getting daily data for ${year}-${month + 1}`);
+        
+        // Calculate start and end dates for the month
+        const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        
+        // Get daily data from database
+        const stmt = global.db.db.prepare(`
+            SELECT date, day_name, total_minutes, notes
+            FROM daily_data 
+            WHERE date >= ? AND date <= ?
+            AND total_minutes > 0
+            ORDER BY date DESC
+        `);
+        
+        const dailyData = stmt.all(startDate, endDate);
+        
+        console.log(`✅ Found ${dailyData.length} days with data for ${year}-${month + 1}`);
+        return dailyData;
+        
+    } catch (error) {
+        console.error('Error getting daily data for month:', error);
+        return [];
+    }
+});
+
+// Get detailed data for a specific day
+ipcMain.handle('get-day-detail-data', async (event, dateString) => {
+    try {
+        console.log(`📋 Getting detail data for ${dateString}`);
+        
+        // Get the specific day's data
+        const dayStmt = global.db.db.prepare(`
+            SELECT * FROM daily_data WHERE date = ?
+        `);
+        
+        const dayData = dayStmt.get(dateString);
+        
+        if (!dayData) {
+            console.log(`No data found for ${dateString}`);
+            return null;
+        }
+        
+        // Extract slot data
+        const slots = [
+            { name: '5-6 AM', field: 'slot_5_6_am', minutes: dayData.slot_5_6_am || 0 },
+            { name: '6-7 AM', field: 'slot_6_7_am', minutes: dayData.slot_6_7_am || 0 },
+            { name: '7-8 AM', field: 'slot_7_8_am', minutes: dayData.slot_7_8_am || 0 },
+            { name: '8-9 AM', field: 'slot_8_9_am', minutes: dayData.slot_8_9_am || 0 },
+            { name: '9-10 AM', field: 'slot_9_10_am', minutes: dayData.slot_9_10_am || 0 },
+            { name: '10-11 AM', field: 'slot_10_11_am', minutes: dayData.slot_10_11_am || 0 },
+            { name: '11-12 PM', field: 'slot_11_12_am', minutes: dayData.slot_11_12_am || 0 },
+            { name: '12-1 PM', field: 'slot_12_1_pm', minutes: dayData.slot_12_1_pm || 0 },
+            { name: '1-2 PM', field: 'slot_1_2_pm', minutes: dayData.slot_1_2_pm || 0 },
+            { name: '2-3 PM', field: 'slot_2_3_pm', minutes: dayData.slot_2_3_pm || 0 },
+            { name: '3-4 PM', field: 'slot_3_4_pm', minutes: dayData.slot_3_4_pm || 0 },
+            { name: '4-5 PM', field: 'slot_4_5_pm', minutes: dayData.slot_4_5_pm || 0 },
+            { name: '5-6 PM', field: 'slot_5_6_pm', minutes: dayData.slot_5_6_pm || 0 },
+            { name: '6-7 PM', field: 'slot_6_7_pm', minutes: dayData.slot_6_7_pm || 0 },
+            { name: '7-8 PM', field: 'slot_7_8_pm', minutes: dayData.slot_7_8_pm || 0 },
+            { name: '8-9 PM', field: 'slot_8_9_pm', minutes: dayData.slot_8_9_pm || 0 },
+            { name: 'Other Time', field: 'other_time', minutes: dayData.other_time || 0 }
+        ].filter(slot => slot.minutes > 0); // Only include slots with time
+        
+        const result = {
+            date: dateString,
+            day_name: dayData.day_name,
+            total_minutes: dayData.total_minutes,
+            slots: slots,
+            notes: dayData.notes || ''
+        };
+        
+        console.log(`✅ Returning detail data for ${dateString}:`, result);
+        return result;
+        
+    } catch (error) {
+        console.error('Error getting day detail data:', error);
+        return null;
+    }
+});
+
+// Get available months/years with data
+ipcMain.handle('get-available-months', async () => {
+    try {
+        console.log('📅 Getting available months with data');
+        
+        const stmt = global.db.db.prepare(`
+            SELECT DISTINCT 
+                strftime('%Y', date) as year,
+                strftime('%m', date) as month
+            FROM daily_data 
+            WHERE total_minutes > 0
+            ORDER BY year DESC, month DESC
+        `);
+        
+        const months = stmt.all();
+        
+        console.log(`✅ Found data in ${months.length} months`);
+        return months;
+        
+    } catch (error) {
+        console.error('Error getting available months:', error);
+        return [];
+    }
+});
+
+// Get productivity summary for a month
+ipcMain.handle('get-month-summary', async (event, year, month) => {
+    try {
+        console.log(`📈 Getting month summary for ${year}-${month + 1}`);
+        
+        const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+        
+        const stmt = global.db.db.prepare(`
+            SELECT 
+                COUNT(*) as total_days,
+                SUM(total_minutes) as total_minutes,
+                AVG(total_minutes) as avg_minutes,
+                MAX(total_minutes) as best_day,
+                MIN(total_minutes) as worst_day
+            FROM daily_data 
+            WHERE date >= ? AND date <= ?
+            AND total_minutes > 0
+        `);
+        
+        const summary = stmt.get(startDate, endDate);
+        
+        console.log(`✅ Month summary for ${year}-${month + 1}:`, summary);
+        return summary;
+        
+    } catch (error) {
+        console.error('Error getting month summary:', error);
+        return null;
+    }
+});
+
 // Add cleanup on app quit
 app.on('before-quit', () => {
     console.log('🧹 App before-quit - cleaning up...');

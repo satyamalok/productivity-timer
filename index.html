@@ -64,6 +64,74 @@
         </div>
     </div>
 </div>
+
+<!-- History Navigation Buttons -->
+<div class="history-buttons">
+    <button id="showDailyHistoryBtn" class="btn btn-history btn-daily">📅 Daily History</button>
+    <button id="showWeeklyOverviewBtn" class="btn btn-history">📈 Weekly Overview</button>
+</div>
+
+<!-- Daily History Modal -->
+<div id="dailyHistoryModal" class="history-modal" style="display: none;">
+    <div class="history-content">
+        <div class="history-header">
+            <h2>📅 Daily History</h2>
+            <button id="closeDailyHistoryBtn" class="close-btn">&times;</button>
+        </div>
+        <div class="month-selector">
+            <label for="monthSelect">Month:</label>
+            <select id="monthSelect">
+                <!-- Options will be populated by JavaScript -->
+            </select>
+            <select id="yearSelect">
+                <!-- Options will be populated by JavaScript -->
+            </select>
+        </div>
+        <div class="daily-timeline" id="dailyTimeline">
+            <!-- Daily items will be populated here -->
+        </div>
+    </div>
+</div>
+
+<!-- Weekly Overview Modal -->
+<div id="weeklyOverviewModal" class="history-modal" style="display: none;">
+    <div class="history-content">
+        <div class="history-header">
+            <h2>📈 Weekly Overview</h2>
+            <button id="closeWeeklyOverviewBtn" class="close-btn">&times;</button>
+        </div>
+        <div class="weekly-timeline" id="weeklyTimeline">
+            <!-- Weekly items will be populated here -->
+        </div>
+    </div>
+</div>
+
+<!-- Day Detail Modal -->
+<div id="dayDetailModal" class="history-modal" style="display: none;">
+    <div class="history-content day-detail-content">
+        <div class="history-header">
+            <h2>📋 Day Details</h2>
+            <button id="closeDayDetailBtn" class="close-btn">&times;</button>
+        </div>
+        <div class="day-detail-header" id="dayDetailHeader">
+            <!-- Day header will be populated here -->
+        </div>
+        <div class="day-detail-body">
+            <div class="detail-section">
+                <h3>⏰ Time Breakdown</h3>
+                <div class="detail-slots" id="dayDetailSlots">
+                    <!-- Slots will be populated here -->
+                </div>
+            </div>
+            <div class="detail-section">
+                <h3>📝 Notes</h3>
+                <div class="detail-notes" id="dayDetailNotes">
+                    <!-- Notes will be populated here -->
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
             
         </main>
     </div>

@@ -17,20 +17,8 @@ const weekTotal = document.getElementById('weekTotal');
 // IPC communication helper
 const { ipcRenderer } = require('electron');
 
-// Initialize app
-document.addEventListener('DOMContentLoaded', () => {
-    updateDateDisplay();
-    updateStatsDisplay();
-    setupEventListeners();
-    setupRankingModal();
-    setupEnhancedUI();
-    setupDataManagement();
-    setupPINProtection(); // ADD THIS LINE - was missing!
-    determineCurrentHourSlot();
-    
-    // Update stats every minute
-    setInterval(updateStatsDisplay, 60000);
-});
+// Initialize app code deleted due to duplication
+
 
 function setupEventListeners() {
     startBtn.addEventListener('click', startTimer);
@@ -668,8 +656,16 @@ function setupNotesSaving() {
     });
 }
 
+// Enhanced populateSlotsGrid function with better error handling
 function populateSlotsGrid(hourlyBreakdown) {
+    console.log('📊 Populating slots grid with data:', hourlyBreakdown);
+    
     const slotsGrid = document.getElementById('slotsGrid');
+    
+    if (!slotsGrid) {
+        console.error('❌ Slots grid element not found');
+        return;
+    }
     
     if (!hourlyBreakdown || hourlyBreakdown.length === 0) {
         slotsGrid.innerHTML = `
@@ -680,19 +676,39 @@ function populateSlotsGrid(hourlyBreakdown) {
             </div>
         `;
         
-        // Setup manual entry button
         setupManualEntryButton();
         return;
     }
     
-    slotsGrid.innerHTML = hourlyBreakdown.map((slot, index) => `
+    // Sort slots chronologically
+    const slotOrder = {
+        'slot_5_6_am': 1, 'slot_6_7_am': 2, 'slot_7_8_am': 3, 'slot_8_9_am': 4,
+        'slot_9_10_am': 5, 'slot_10_11_am': 6, 'slot_11_12_am': 7, 'slot_12_1_pm': 8,
+        'slot_1_2_pm': 9, 'slot_2_3_pm': 10, 'slot_3_4_pm': 11, 'slot_4_5_pm': 12,
+        'slot_5_6_pm': 13, 'slot_6_7_pm': 14, 'slot_7_8_pm': 15, 'slot_8_9_pm': 16,
+        'other_time': 17
+    };
+    
+    const sortedSlots = hourlyBreakdown.sort((a, b) => {
+        return (slotOrder[a.field] || 99) - (slotOrder[b.field] || 99);
+    });
+    
+    slotsGrid.innerHTML = sortedSlots.map((slot, index) => `
         <div class="slot-card" data-slot="${slot.field}">
             <div class="slot-name">${slot.name}</div>
-            <div class="slot-duration slot-clickable" data-slot="${slot.field}" data-minutes="${slot.minutes}" data-name="${slot.name}">${formatTime(slot.minutes)}</div>
+            <div class="slot-duration slot-clickable" 
+                 data-slot="${slot.field}" 
+                 data-minutes="${slot.minutes}" 
+                 data-name="${slot.name}"
+                 title="Click to edit">${formatTime(slot.minutes)}</div>
             <div class="slot-progress">
                 <div class="progress-bar" style="width: ${Math.min((slot.minutes / 60) * 100, 100)}%"></div>
             </div>
-            <button class="edit-slot-btn" data-slot="${slot.field}" data-minutes="${slot.minutes}" data-name="${slot.name}">✏️</button>
+            <button class="edit-slot-btn" 
+                    data-slot="${slot.field}" 
+                    data-minutes="${slot.minutes}" 
+                    data-name="${slot.name}"
+                    title="Edit time">✏️</button>
         </div>
     `).join('') + `
         <div class="slot-card add-entry-card">
@@ -700,106 +716,131 @@ function populateSlotsGrid(hourlyBreakdown) {
         </div>
     `;
     
-    // Setup event listeners for edit buttons and clickable durations
-    setupSlotEditListeners();
-    setupManualEntryButton();
+    // Setup event listeners after DOM update
+    setTimeout(() => {
+        setupSlotEditListeners();
+        setupManualEntryButton();
+    }, 100);
+    
+    console.log('✅ Slots grid populated successfully');
 }
 
-async function editSlotTime(slotField, currentMinutes, slotName) {
-    const newMinutes = prompt(
-        `Edit time for ${slotName}\n\nCurrent: ${formatTime(currentMinutes)}\n\nEnter new duration in minutes:`,
-        currentMinutes.toString()
-    );
-    
-    if (newMinutes === null) return; // User cancelled
-    
-    const minutes = parseInt(newMinutes);
-    if (isNaN(minutes) || minutes < 0) {
-        showNotification('Invalid Input', 'Please enter a valid number of minutes', 'error');
-        return;
-    }
+// Fixed editSlotTime function with proper error handling
+// Updated editSlotTime using custom prompt
+window.editSlotTime = async function(slotField, currentMinutes, slotName) {
+    console.log('🔧 editSlotTime called with:', { slotField, currentMinutes, slotName });
     
     try {
-        // Update the specific slot
-        await ipcRenderer.invoke('update-slot-time', slotField, minutes);
-        
-        // Refresh the display
-        const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
-        populateSlotsGrid(hourlyBreakdown);
-        
-        // Update stats and main slots
-        updateStatsDisplay();
-        
-        showNotification('Time Updated!', 
-            `${slotName}: ${formatTime(currentMinutes)} → ${formatTime(minutes)}`, 
-            'success'
+        const newMinutes = await customPrompt(
+            `Edit time for ${slotName}\n\nCurrent: ${formatTime(currentMinutes)}\n\nEnter new duration in minutes:`,
+            currentMinutes.toString()
         );
         
+        console.log('User entered:', newMinutes);
+        
+        if (newMinutes === null || newMinutes === '') {
+            console.log('User cancelled');
+            return;
+        }
+        
+        const minutes = parseInt(newMinutes);
+        if (isNaN(minutes) || minutes < 0) {
+            console.error('Invalid input:', newMinutes);
+            await customPrompt('Please enter a valid number of minutes (0 or greater)', '');
+            return;
+        }
+        
+        console.log(`Updating ${slotField} to ${minutes} minutes`);
+        
+        // Update via IPC
+        const result = await ipcRenderer.invoke('update-slot-time', slotField, minutes);
+        console.log('IPC result:', result);
+        
+        // Refresh displays
+        await updateStatsDisplay();
+        await updateMainSlotsDisplay();
+        
+        // If today modal is open, refresh it
+        const todayModal = document.getElementById('todayModal');
+        if (todayModal && todayModal.style.display === 'flex') {
+            const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
+            populateSlotsGrid(hourlyBreakdown);
+        }
+        
+        console.log('✅ editSlotTime completed successfully');
+        showNotification('Time Updated!', `${slotName}: ${formatTime(currentMinutes)} → ${formatTime(minutes)}`, 'success');
+        
     } catch (error) {
-        console.error('Error updating slot time:', error);
-        showNotification('Error', 'Failed to update time', 'error');
+        console.error('❌ Error in editSlotTime:', error);
+        showNotification('Error', `Failed to update time: ${error.message}`, 'error');
     }
-}
+};
 
-async function showManualEntryDialog() {
-    // Simple approach - ask for slot and minutes
-    const slotName = prompt(
-        `Which time slot would you like to add time to?\n\nEnter one of:\n` +
-        `5-6 AM, 6-7 AM, 7-8 AM, 8-9 AM, 9-10 AM, 10-11 AM, 11-12 PM,\n` +
-        `12-1 PM, 1-2 PM, 2-3 PM, 3-4 PM, 4-5 PM, 5-6 PM, 6-7 PM, 7-8 PM, 8-9 PM, Other\n\n` +
-        `Example: "10-11 AM" or "Other"`
-    );
-    
-    if (!slotName) return;
-    
-    // Map user input to database field names
-    const slotMap = {
-        '5-6 AM': 'slot_5_6_am', '6-7 AM': 'slot_6_7_am', '7-8 AM': 'slot_7_8_am',
-        '8-9 AM': 'slot_8_9_am', '9-10 AM': 'slot_9_10_am', '10-11 AM': 'slot_10_11_am',
-        '11-12 PM': 'slot_11_12_am', '12-1 PM': 'slot_12_1_pm', '1-2 PM': 'slot_1_2_pm',
-        '2-3 PM': 'slot_2_3_pm', '3-4 PM': 'slot_3_4_pm', '4-5 PM': 'slot_4_5_pm',
-        '5-6 PM': 'slot_5_6_pm', '6-7 PM': 'slot_6_7_pm', '7-8 PM': 'slot_7_8_pm',
-        '8-9 PM': 'slot_8_9_pm', 'Other': 'other_time'
-    };
-    
-    const slotField = slotMap[slotName.trim()];
-    if (!slotField) {
-        showNotification('Invalid Slot', 'Please enter a valid time slot name', 'error');
-        return;
-    }
-    
-    const minutes = prompt(`How many minutes would you like to add to ${slotName}?`, '30');
-    if (!minutes) return;
-    
-    const addMinutes = parseInt(minutes);
-    if (isNaN(addMinutes) || addMinutes <= 0) {
-        showNotification('Invalid Input', 'Please enter a valid number of minutes', 'error');
-        return;
-    }
+// Updated showManualEntryDialog using custom dialogs
+window.showManualEntryDialog = async function() {
+    console.log('📝 showManualEntryDialog called');
     
     try {
-        // Add time to the selected slot
-        await ipcRenderer.invoke('add-time-to-slot', slotField, addMinutes);
+        // Show slot selection dialog
+        const selectedSlot = await customSlotSelection();
         
-        // Refresh the display
-        const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
-        populateSlotsGrid(hourlyBreakdown);
+        if (!selectedSlot) {
+            console.log('User cancelled slot selection');
+            return;
+        }
         
-        // Update stats
-        updateStatsDisplay();
+        console.log('Selected slot:', selectedSlot);
         
-        showNotification('Time Added!', 
-            `Added ${addMinutes} minutes to ${slotName}`, 
-            'success'
+        // Ask for minutes
+        const minutes = await customPrompt(
+            `⏱️ How many minutes would you like to add to ${selectedSlot.display}?\n\n(Time will be added to existing time for this slot)`,
+            '30'
         );
         
+        console.log('User entered minutes:', minutes);
+        
+        if (!minutes || minutes === '') {
+            console.log('User cancelled minutes entry');
+            return;
+        }
+        
+        const addMinutes = parseInt(minutes);
+        if (isNaN(addMinutes) || addMinutes <= 0) {
+            console.error('Invalid minutes:', minutes);
+            await customPrompt('Please enter a valid number of minutes (greater than 0)', '');
+            return;
+        }
+        
+        console.log(`Adding ${addMinutes} minutes to ${selectedSlot.field}`);
+        
+        // Add time via IPC
+        const result = await ipcRenderer.invoke('add-time-to-slot', selectedSlot.field, addMinutes);
+        console.log('IPC result:', result);
+        
+        // Refresh displays
+        await updateStatsDisplay();
+        await updateMainSlotsDisplay();
+        
+        // If today modal is open, refresh it
+        const todayModal = document.getElementById('todayModal');
+        if (todayModal && todayModal.style.display === 'flex') {
+            const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
+            populateSlotsGrid(hourlyBreakdown);
+        }
+        
+        console.log('✅ showManualEntryDialog completed successfully');
+        showNotification('Time Added!', `Added ${addMinutes} minutes to ${selectedSlot.display}`, 'success');
+        
     } catch (error) {
-        console.error('Error adding manual time:', error);
-        showNotification('Error', 'Failed to add time', 'error');
+        console.error('❌ Error in showManualEntryDialog:', error);
+        showNotification('Error', `Failed to add time: ${error.message}`, 'error');
     }
-}
+};
 
+// Fixed slot edit listeners setup
 function setupSlotEditListeners() {
+    console.log('🔧 Setting up slot edit listeners');
+    
     // Edit buttons
     document.querySelectorAll('.edit-slot-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
@@ -807,6 +848,8 @@ function setupSlotEditListeners() {
             const slotField = btn.getAttribute('data-slot');
             const minutes = parseInt(btn.getAttribute('data-minutes'));
             const slotName = btn.getAttribute('data-name');
+            
+            console.log(`Edit button clicked: ${slotField}, ${minutes}, ${slotName}`);
             editSlotTime(slotField, minutes, slotName);
         });
     });
@@ -817,15 +860,34 @@ function setupSlotEditListeners() {
             const slotField = duration.getAttribute('data-slot');
             const minutes = parseInt(duration.getAttribute('data-minutes'));
             const slotName = duration.getAttribute('data-name');
+            
+            console.log(`Duration clicked: ${slotField}, ${minutes}, ${slotName}`);
             editSlotTime(slotField, minutes, slotName);
         });
     });
+    
+    console.log('✅ Slot edit listeners setup complete');
 }
 
+// Fixed manual entry button setup
 function setupManualEntryButton() {
+    console.log('🔧 Setting up manual entry button');
+    
     const addBtn = document.getElementById('addManualEntryBtn');
     if (addBtn) {
-        addBtn.addEventListener('click', showManualEntryDialog);
+        // Remove existing listeners and add new one
+        addBtn.replaceWith(addBtn.cloneNode(true));
+        const newAddBtn = document.getElementById('addManualEntryBtn');
+        
+        newAddBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            console.log('Manual entry button clicked');
+            showManualEntryDialog();
+        });
+        
+        console.log('✅ Manual entry button setup complete');
+    } else {
+        console.warn('⚠️ Manual entry button not found');
     }
 }
 
@@ -1288,6 +1350,10 @@ document.addEventListener('DOMContentLoaded', () => {
     setupDataManagement();
     setupPINProtection(); // This was the missing line!
     determineCurrentHourSlot();
+    setupSlotEditListeners();
+    setupManualEntryButton();
+    updateMainSlotsDisplay();
+    setupHistoryFeatures();
     
     // Update stats every minute
     setInterval(updateStatsDisplay, 60000);
@@ -1363,6 +1429,7 @@ function setupPINChange() {
     });
 }
 
+// Enhanced updateMainSlotsDisplay with click functionality
 async function updateMainSlotsDisplay() {
     try {
         const hourlyBreakdown = await ipcRenderer.invoke('get-today-hourly-breakdown');
@@ -1390,13 +1457,637 @@ async function updateMainSlotsDisplay() {
         });
         
         mainSlotsContainer.innerHTML = sortedSlots.map(slot => `
-            <div class="main-slot-card" onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name}')">
+            <div class="main-slot-card" 
+                 onclick="editSlotTime('${slot.field}', ${slot.minutes}, '${slot.name.replace(/'/g, "\\'")}')"
+                 title="Click to edit ${slot.name}">
                 <div class="main-slot-name">${slot.name}</div>
                 <div class="main-slot-time">${formatTime(slot.minutes)}</div>
             </div>
         `).join('');
         
+        console.log('✅ Main slots display updated successfully');
+        
     } catch (error) {
         console.error('Error updating main slots display:', error);
+    }
+}
+
+// Custom prompt function using modal
+function customPrompt(message, defaultValue = '') {
+    return new Promise((resolve) => {
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-prompt-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10003;
+            backdrop-filter: blur(5px);
+        `;
+        
+        // Create modal content
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        `;
+        
+        modal.innerHTML = `
+            <h3 style="color: #2c3e50; margin-bottom: 20px;">Input Required</h3>
+            <p style="color: #7f8c8d; margin-bottom: 20px; white-space: pre-line;">${message}</p>
+            <input type="text" id="promptInput" 
+                   style="width: 100%; padding: 12px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 1rem; margin-bottom: 20px;" 
+                   value="${defaultValue}">
+            <div style="display: flex; gap: 10px; justify-content: center;">
+                <button id="promptOk" style="background: linear-gradient(45deg, #27ae60, #2ecc71); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">OK</button>
+                <button id="promptCancel" style="background: linear-gradient(45deg, #95a5a6, #7f8c8d); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Cancel</button>
+            </div>
+        `;
+        
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        const input = modal.querySelector('#promptInput');
+        const okBtn = modal.querySelector('#promptOk');
+        const cancelBtn = modal.querySelector('#promptCancel');
+        
+        // Focus input and select text
+        setTimeout(() => {
+            input.focus();
+            input.select();
+        }, 100);
+        
+        // Handle OK button
+        okBtn.addEventListener('click', () => {
+            const value = input.value.trim();
+            document.body.removeChild(overlay);
+            resolve(value || null);
+        });
+        
+        // Handle Cancel button
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            resolve(null);
+        });
+        
+        // Handle Enter key
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                okBtn.click();
+            }
+        });
+        
+        // Handle Escape key
+        document.addEventListener('keydown', function escapeHandler(e) {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', escapeHandler);
+                cancelBtn.click();
+            }
+        });
+    });
+}
+
+// Custom slot selection dialog
+function customSlotSelection() {
+    return new Promise((resolve) => {
+        const slotOptions = [
+            { display: '5-6 AM', field: 'slot_5_6_am' },
+            { display: '6-7 AM', field: 'slot_6_7_am' },
+            { display: '7-8 AM', field: 'slot_7_8_am' },
+            { display: '8-9 AM', field: 'slot_8_9_am' },
+            { display: '9-10 AM', field: 'slot_9_10_am' },
+            { display: '10-11 AM', field: 'slot_10_11_am' },
+            { display: '11-12 PM', field: 'slot_11_12_am' },
+            { display: '12-1 PM', field: 'slot_12_1_pm' },
+            { display: '1-2 PM', field: 'slot_1_2_pm' },
+            { display: '2-3 PM', field: 'slot_2_3_pm' },
+            { display: '3-4 PM', field: 'slot_3_4_pm' },
+            { display: '4-5 PM', field: 'slot_4_5_pm' },
+            { display: '5-6 PM', field: 'slot_5_6_pm' },
+            { display: '6-7 PM', field: 'slot_6_7_pm' },
+            { display: '7-8 PM', field: 'slot_7_8_pm' },
+            { display: '8-9 PM', field: 'slot_8_9_pm' },
+            { display: 'Other Time', field: 'other_time' }
+        ];
+        
+        // Create modal overlay
+        const overlay = document.createElement('div');
+        overlay.className = 'custom-slot-overlay';
+        overlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10003;
+            backdrop-filter: blur(5px);
+        `;
+        
+        // Create modal content
+        const modal = document.createElement('div');
+        modal.style.cssText = `
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            max-width: 500px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        `;
+        
+        const buttonsHtml = slotOptions.map((slot, index) => `
+            <button class="slot-option-btn" data-field="${slot.field}" data-display="${slot.display}"
+                    style="width: 100%; margin: 5px 0; padding: 12px; background: linear-gradient(45deg, #3498db, #2980b9); 
+                           color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; transition: all 0.3s ease;">
+                ${slot.display}
+            </button>
+        `).join('');
+        
+        modal.innerHTML = `
+            <h3 style="color: #2c3e50; margin-bottom: 20px;">📋 Select Time Slot</h3>
+            <p style="color: #7f8c8d; margin-bottom: 20px;">Choose which time slot to add minutes to:</p>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 20px;">
+                ${buttonsHtml}
+            </div>
+            <button id="slotCancel" style="background: linear-gradient(45deg, #95a5a6, #7f8c8d); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer;">Cancel</button>
+        `;
+        
+        overlay.appendChild(modal);
+        document.body.appendChild(overlay);
+        
+        // Add hover effects
+        const slotBtns = modal.querySelectorAll('.slot-option-btn');
+        slotBtns.forEach(btn => {
+            btn.addEventListener('mouseenter', () => {
+                btn.style.transform = 'translateY(-2px)';
+                btn.style.boxShadow = '0 5px 15px rgba(52, 152, 219, 0.4)';
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = 'translateY(0)';
+                btn.style.boxShadow = 'none';
+            });
+            btn.addEventListener('click', () => {
+                const field = btn.getAttribute('data-field');
+                const display = btn.getAttribute('data-display');
+                document.body.removeChild(overlay);
+                resolve({ field, display });
+            });
+        });
+        
+        // Handle Cancel button
+        const cancelBtn = modal.querySelector('#slotCancel');
+        cancelBtn.addEventListener('click', () => {
+            document.body.removeChild(overlay);
+            resolve(null);
+        });
+        
+        // Handle Escape key
+        document.addEventListener('keydown', function escapeHandler(e) {
+            if (e.key === 'Escape') {
+                document.removeEventListener('keydown', escapeHandler);
+                cancelBtn.click();
+            }
+        });
+    });
+}
+
+// History Features JavaScript
+
+// Global variables for history
+let currentHistoryMonth = new Date().getMonth();
+let currentHistoryYear = new Date().getFullYear();
+
+// Setup history functionality
+function setupHistoryFeatures() {
+    console.log('🔧 Setting up history features');
+    
+    const showDailyBtn = document.getElementById('showDailyHistoryBtn');
+    const showWeeklyBtn = document.getElementById('showWeeklyOverviewBtn');
+    const dailyModal = document.getElementById('dailyHistoryModal');
+    const weeklyModal = document.getElementById('weeklyOverviewModal');
+    const dayDetailModal = document.getElementById('dayDetailModal');
+    
+    // Daily History Modal
+    const closeDailyBtn = document.getElementById('closeDailyHistoryBtn');
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    
+    // Weekly Overview Modal
+    const closeWeeklyBtn = document.getElementById('closeWeeklyOverviewBtn');
+    
+    // Day Detail Modal
+    const closeDayDetailBtn = document.getElementById('closeDayDetailBtn');
+    
+    // Event listeners
+    showDailyBtn.addEventListener('click', showDailyHistory);
+    showWeeklyBtn.addEventListener('click', showWeeklyOverview);
+    
+    closeDailyBtn.addEventListener('click', () => {
+        dailyModal.style.display = 'none';
+    });
+    
+    closeWeeklyBtn.addEventListener('click', () => {
+        weeklyModal.style.display = 'none';
+    });
+    
+    closeDayDetailBtn.addEventListener('click', () => {
+        dayDetailModal.style.display = 'none';
+    });
+    
+    // Month/Year selector change
+    monthSelect.addEventListener('change', (e) => {
+        currentHistoryMonth = parseInt(e.target.value);
+        loadDailyHistoryData();
+    });
+    
+    yearSelect.addEventListener('change', (e) => {
+        currentHistoryYear = parseInt(e.target.value);
+        loadDailyHistoryData();
+    });
+    
+    // Close modals when clicking outside
+    dailyModal.addEventListener('click', (e) => {
+        if (e.target === dailyModal) {
+            dailyModal.style.display = 'none';
+        }
+    });
+    
+    weeklyModal.addEventListener('click', (e) => {
+        if (e.target === weeklyModal) {
+            weeklyModal.style.display = 'none';
+        }
+    });
+    
+    dayDetailModal.addEventListener('click', (e) => {
+        if (e.target === dayDetailModal) {
+            dayDetailModal.style.display = 'none';
+        }
+    });
+    
+    console.log('✅ History features setup complete');
+}
+
+// Show Daily History Modal
+async function showDailyHistory() {
+    console.log('📅 Opening daily history');
+    
+    try {
+        const dailyModal = document.getElementById('dailyHistoryModal');
+        
+        // Setup month/year selectors
+        setupMonthYearSelectors();
+        
+        // Load data for current month
+        await loadDailyHistoryData();
+        
+        // Show modal
+        dailyModal.style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error showing daily history:', error);
+        showNotification('Error', 'Failed to load daily history', 'error');
+    }
+}
+
+// Setup Month and Year Selectors
+function setupMonthYearSelectors() {
+    const monthSelect = document.getElementById('monthSelect');
+    const yearSelect = document.getElementById('yearSelect');
+    
+    // Populate months
+    const months = [
+        'January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'
+    ];
+    
+    monthSelect.innerHTML = months.map((month, index) => 
+        `<option value="${index}" ${index === currentHistoryMonth ? 'selected' : ''}>${month}</option>`
+    ).join('');
+    
+    // Populate years (current year and 2 years back)
+    const currentYear = new Date().getFullYear();
+    const years = [currentYear, currentYear - 1, currentYear - 2];
+    
+    yearSelect.innerHTML = years.map(year => 
+        `<option value="${year}" ${year === currentHistoryYear ? 'selected' : ''}>${year}</option>`
+    ).join('');
+}
+
+// Load Daily History Data
+// Updated loadDailyHistoryData function
+async function loadDailyHistoryData() {
+    console.log(`📊 Loading daily data for ${currentHistoryMonth + 1}/${currentHistoryYear}`);
+    
+    try {
+        // Get daily data for the selected month/year
+        const dailyData = await getDailyDataForMonth(currentHistoryYear, currentHistoryMonth);
+        
+        // Populate timeline
+        populateDailyTimeline(dailyData);
+        
+        // Add month summary if data exists
+        if (dailyData.length > 0) {
+            await loadMonthSummary();
+        }
+        
+    } catch (error) {
+        console.error('Error loading daily history data:', error);
+        showNotification('Error', 'Failed to load daily data', 'error');
+    }
+}
+
+// Get Daily Data for Specific Month (simulate IPC call)
+// Replace the getDailyDataForMonth function
+async function getDailyDataForMonth(year, month) {
+    try {
+        console.log(`📊 Loading real daily data for ${year}-${month + 1}`);
+        
+        // Use real IPC call now
+        const data = await ipcRenderer.invoke('get-daily-data-for-month', year, month);
+        
+        console.log(`✅ Loaded ${data.length} days of real data`);
+        return data;
+        
+    } catch (error) {
+        console.error('Error getting daily data:', error);
+        return [];
+    }
+}
+
+// Populate Daily Timeline
+function populateDailyTimeline(dailyData) {
+    const timeline = document.getElementById('dailyTimeline');
+    
+    if (!dailyData || dailyData.length === 0) {
+        timeline.innerHTML = `
+            <div class="no-data">
+                <h3>No Data Available</h3>
+                <p>No productivity data found for this month.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Sort by date (newest first)
+    const sortedData = dailyData.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    timeline.innerHTML = sortedData.map(day => {
+        const date = new Date(day.date);
+        const hours = Math.floor(day.total_minutes / 60);
+        const minutes = day.total_minutes % 60;
+        const timeStr = `${hours}H ${minutes}M`;
+        
+        // Determine productivity level and color
+        const level = getProductivityLevel(day.total_minutes);
+        
+        return `
+            <div class="day-item ${level.class}" onclick="showDayDetail('${day.date}')">
+                <div class="day-info">
+                    <div class="day-date">${date.toLocaleDateString('en-US', { 
+                        weekday: 'long', 
+                        day: 'numeric', 
+                        month: 'long',
+                        year: 'numeric'
+                    })}</div>
+                    <div class="day-summary">${day.notes ? 'Has notes' : 'No notes'}</div>
+                </div>
+                <div class="day-stats">
+                    <div class="day-hours">${timeStr}</div>
+                    <div class="day-level level-${level.class}">${level.label}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Get Productivity Level
+function getProductivityLevel(totalMinutes) {
+    const hours = totalMinutes / 60;
+    
+    if (hours >= 5) return { class: 'excellent', label: 'Excellent' };
+    if (hours >= 4) return { class: 'good', label: 'Good' };
+    if (hours >= 2) return { class: 'average', label: 'Average' };
+    if (hours >= 1) return { class: 'below', label: 'Below' };
+    return { class: 'poor', label: 'Poor' };
+}
+
+// Show Day Detail Modal
+async function showDayDetail(dateString) {
+    console.log(`📋 Opening day detail for ${dateString}`);
+    
+    try {
+        // Get detailed data for the specific day
+        const dayData = await getDayDetailData(dateString);
+        
+        if (!dayData) {
+            showNotification('Error', 'No data found for this day', 'error');
+            return;
+        }
+        
+        // Populate day detail modal
+        populateDayDetail(dayData);
+        
+        // Show modal
+        const dayDetailModal = document.getElementById('dayDetailModal');
+        dayDetailModal.style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error showing day detail:', error);
+        showNotification('Error', 'Failed to load day details', 'error');
+    }
+}
+
+// Get Day Detail Data
+async function getDayDetailData(dateString) {
+    try {
+        console.log(`📋 Loading real day detail for ${dateString}`);
+        
+        // Use real IPC call now
+        const data = await ipcRenderer.invoke('get-day-detail-data', dateString);
+        
+        console.log(`✅ Loaded real day detail:`, data);
+        return data;
+        
+    } catch (error) {
+        console.error('Error getting day detail data:', error);
+        return null;
+    }
+}
+
+// Populate Day Detail Modal
+function populateDayDetail(dayData) {
+    const date = new Date(dayData.date);
+    const hours = Math.floor(dayData.total_minutes / 60);
+    const minutes = dayData.total_minutes % 60;
+    const level = getProductivityLevel(dayData.total_minutes);
+    
+    // Populate header
+    const header = document.getElementById('dayDetailHeader');
+    header.innerHTML = `
+        <div class="day-detail-title">${date.toLocaleDateString('en-US', { 
+            weekday: 'long', 
+            day: 'numeric', 
+            month: 'long',
+            year: 'numeric'
+        })}</div>
+        <div class="day-detail-stats">
+            <div class="detail-stat">
+                <div class="detail-stat-value">${hours}H ${minutes}M</div>
+                <div class="detail-stat-label">Total Time</div>
+            </div>
+            <div class="detail-stat">
+                <div class="detail-stat-value">${level.label}</div>
+                <div class="detail-stat-label">Productivity</div>
+            </div>
+            <div class="detail-stat">
+                <div class="detail-stat-value">${dayData.slots.length}</div>
+                <div class="detail-stat-label">Active Slots</div>
+            </div>
+        </div>
+    `;
+    
+    // Populate slots
+    const slotsContainer = document.getElementById('dayDetailSlots');
+    slotsContainer.innerHTML = dayData.slots.map(slot => `
+        <div class="detail-slot">
+            <span>${slot.name}</span>
+            <span>${Math.floor(slot.minutes / 60)}H ${slot.minutes % 60}M</span>
+        </div>
+    `).join('');
+    
+    // Populate notes
+    const notesContainer = document.getElementById('dayDetailNotes');
+    notesContainer.textContent = dayData.notes || 'No notes recorded for this day.';
+}
+
+// Show Weekly Overview Modal
+async function showWeeklyOverview() {
+    console.log('📈 Opening weekly overview');
+    
+    try {
+        const weeklyModal = document.getElementById('weeklyOverviewModal');
+        
+        // Load weekly data
+        await loadWeeklyOverviewData();
+        
+        // Show modal
+        weeklyModal.style.display = 'flex';
+        
+    } catch (error) {
+        console.error('Error showing weekly overview:', error);
+        showNotification('Error', 'Failed to load weekly overview', 'error');
+    }
+}
+
+// Load Weekly Overview Data
+async function loadWeeklyOverviewData() {
+    console.log('📊 Loading weekly overview data');
+    
+    try {
+        // Get weekly ranking data (using existing function)
+        const weeklyData = await ipcRenderer.invoke('get-weekly-ranking-data', 20);
+        
+        // Populate timeline
+        populateWeeklyTimeline(weeklyData);
+        
+    } catch (error) {
+        console.error('Error loading weekly data:', error);
+        showNotification('Error', 'Failed to load weekly data', 'error');
+    }
+}
+
+// Populate Weekly Timeline
+function populateWeeklyTimeline(weeklyData) {
+    const timeline = document.getElementById('weeklyTimeline');
+    
+    if (!weeklyData || weeklyData.length === 0) {
+        timeline.innerHTML = `
+            <div class="no-data">
+                <h3>No Weekly Data</h3>
+                <p>No weekly productivity data available yet.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    timeline.innerHTML = weeklyData.map(week => {
+        const hours = Math.floor(week.total_minutes / 60);
+        const minutes = week.total_minutes % 60;
+        const timeStr = `${hours}H ${minutes}M`;
+        
+        return `
+            <div class="week-item">
+                <div class="week-info">
+                    <div class="week-title">Week ${week.week_number}, ${week.year}</div>
+                    <div class="week-dates">${week.date_range}</div>
+                </div>
+                <div class="week-stats">
+                    <div class="week-hours">${timeStr}</div>
+                    <div class="week-rank">Rank #${week.rank}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Make showDayDetail globally accessible
+window.showDayDetail = showDayDetail;
+
+// Add month summary to daily history
+async function loadMonthSummary() {
+    try {
+        const summary = await ipcRenderer.invoke('get-month-summary', currentHistoryYear, currentHistoryMonth);
+        
+        if (!summary || summary.total_days === 0) return;
+        
+        const avgHours = Math.floor(summary.avg_minutes / 60);
+        const avgMins = Math.round(summary.avg_minutes % 60);
+        const totalHours = Math.floor(summary.total_minutes / 60);
+        const totalMins = Math.round(summary.total_minutes % 60);
+        
+        // Add summary to timeline (you can customize this)
+        const timeline = document.getElementById('dailyTimeline');
+        const summaryHtml = `
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 15px; margin-bottom: 20px;">
+                <h3 style="margin: 0 0 15px 0;">📊 Month Summary</h3>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px;">
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold;">${summary.total_days}</div>
+                        <div style="opacity: 0.9;">Active Days</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold;">${totalHours}H ${totalMins}M</div>
+                        <div style="opacity: 0.9;">Total Time</div>
+                    </div>
+                    <div style="text-align: center;">
+                        <div style="font-size: 1.2rem; font-weight: bold;">${avgHours}H ${avgMins}M</div>
+                        <div style="opacity: 0.9;">Daily Average</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        timeline.insertAdjacentHTML('afterbegin', summaryHtml);
+        
+    } catch (error) {
+        console.error('Error loading month summary:', error);
     }
 }

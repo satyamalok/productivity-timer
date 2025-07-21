@@ -1183,3 +1183,547 @@ main {
         min-width: 100px;
     }
 }
+
+/* Add these styles to your styles.css for better edit functionality */
+
+/* Enhanced slot card hover effects */
+.slot-card {
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.slot-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+    border-color: #3498db;
+}
+
+/* Make slot duration more obviously clickable */
+.slot-clickable {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: 5px;
+    border-radius: 5px;
+    border: 2px solid transparent;
+}
+
+.slot-clickable:hover {
+    color: #2980b9;
+    background-color: rgba(52, 152, 219, 0.1);
+    border-color: #3498db;
+    transform: scale(1.05);
+}
+
+/* Enhanced edit button */
+.edit-slot-btn {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    background: linear-gradient(45deg, #3498db, #2980b9);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    width: 28px;
+    height: 28px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    opacity: 0;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+
+.slot-card:hover .edit-slot-btn {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.edit-slot-btn:hover {
+    background: linear-gradient(45deg, #2980b9, #3498db);
+    transform: scale(1.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+/* Enhanced main slot cards */
+.main-slot-card {
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.main-slot-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+.main-slot-card:hover::before {
+    content: "✏️ Click to edit";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.8);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.8rem;
+    opacity: 0;
+    animation: fadeIn 0.3s ease forwards;
+}
+
+@keyframes fadeIn {
+    to { opacity: 1; }
+}
+
+/* Enhanced manual entry button */
+.btn-manual {
+    background: linear-gradient(45deg, #27ae60, #2ecc71);
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(39, 174, 96, 0.3);
+}
+
+.btn-manual:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(39, 174, 96, 0.4);
+    background: linear-gradient(45deg, #2ecc71, #27ae60);
+}
+
+/* Enhanced add entry card */
+.add-entry-card {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed #27ae60;
+    background: rgba(39, 174, 96, 0.05);
+    min-height: 100px;
+    transition: all 0.3s ease;
+}
+
+.add-entry-card:hover {
+    border-color: #2ecc71;
+    background: rgba(39, 174, 96, 0.1);
+    transform: scale(1.02);
+}
+
+/* Tooltip styles */
+[title]:hover::after {
+    content: attr(title);
+    position: absolute;
+    bottom: -30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* Enhanced progress bars */
+.slot-progress {
+    background: #e9ecef;
+    border-radius: 10px;
+    height: 6px;
+    overflow: hidden;
+    margin-top: 8px;
+}
+
+.progress-bar {
+    height: 100%;
+    background: linear-gradient(45deg, #27ae60, #2ecc71);
+    border-radius: 10px;
+    transition: width 0.5s ease;
+    position: relative;
+}
+
+.progress-bar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+    0% { left: -100%; }
+    100% { left: 100%; }
+}
+
+/* Responsive improvements */
+@media (max-width: 768px) {
+    .slot-card {
+        min-height: 120px;
+    }
+    
+    .edit-slot-btn {
+        opacity: 1; /* Always visible on mobile */
+        width: 32px;
+        height: 32px;
+        font-size: 1rem;
+    }
+    
+    .main-slot-card:hover::before {
+        display: none; /* Disable hover overlay on mobile */
+    }
+}
+
+/* History Features Styles */
+.history-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 15px;
+}
+
+.btn-history {
+    background: linear-gradient(45deg, #8e44ad, #9b59b6);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    min-width: 140px;
+}
+
+.btn-history:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(142, 68, 173, 0.4);
+}
+
+.btn-daily {
+    background: linear-gradient(45deg, #2980b9, #3498db);
+}
+
+.btn-daily:hover {
+    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+}
+
+/* History Modal Styles */
+.history-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.8);
+    z-index: 9999;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    backdrop-filter: blur(5px);
+}
+
+.history-content {
+    background: white;
+    border-radius: 20px;
+    padding: 30px;
+    max-width: 800px;
+    width: 95%;
+    max-height: 85vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #ecf0f1;
+    padding-bottom: 15px;
+}
+
+.history-header h2 {
+    color: #2c3e50;
+    margin: 0;
+    font-size: 1.5rem;
+}
+
+.month-selector {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin-bottom: 20px;
+}
+
+.month-selector select {
+    padding: 8px 12px;
+    border: 2px solid #ecf0f1;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: white;
+    cursor: pointer;
+}
+
+.month-selector select:focus {
+    outline: none;
+    border-color: #3498db;
+}
+
+/* Daily Timeline Styles */
+.daily-timeline {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.day-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    margin: 8px 0;
+    background: #f8f9fa;
+    border-radius: 12px;
+    border-left: 5px solid #ddd;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.day-item:hover {
+    transform: translateX(5px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+}
+
+.day-item.excellent { border-left-color: #27ae60; }
+.day-item.good { border-left-color: #3498db; }
+.day-item.average { border-left-color: #f39c12; }
+.day-item.below { border-left-color: #e67e22; }
+.day-item.poor { border-left-color: #e74c3c; }
+
+.day-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.day-date {
+    font-weight: bold;
+    color: #2c3e50;
+    font-size: 1.1rem;
+    margin-bottom: 4px;
+}
+
+.day-summary {
+    color: #7f8c8d;
+    font-size: 0.9rem;
+}
+
+.day-stats {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.day-hours {
+    font-size: 1.2rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+    color: #2c3e50;
+}
+
+.day-level {
+    padding: 4px 12px;
+    border-radius: 15px;
+    font-size: 0.8rem;
+    font-weight: bold;
+    color: white;
+}
+
+.level-excellent { background: #27ae60; }
+.level-good { background: #3498db; }
+.level-average { background: #f39c12; }
+.level-below { background: #e67e22; }
+.level-poor { background: #e74c3c; }
+
+/* Weekly Overview Styles */
+.weekly-timeline {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.week-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 20px;
+    margin: 10px 0;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.week-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(0,0,0,0.2);
+}
+
+.week-info {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.week-title {
+    font-weight: bold;
+    font-size: 1.1rem;
+    margin-bottom: 5px;
+}
+
+.week-dates {
+    opacity: 0.9;
+    font-size: 0.95rem;
+}
+
+.week-stats {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    text-align: right;
+}
+
+.week-hours {
+    font-size: 1.3rem;
+    font-weight: bold;
+    font-family: 'Courier New', monospace;
+}
+
+.week-rank {
+    background: rgba(255,255,255,0.2);
+    padding: 5px 10px;
+    border-radius: 10px;
+    font-weight: bold;
+}
+
+.no-data {
+    text-align: center;
+    padding: 40px;
+    color: #7f8c8d;
+}
+
+.no-data h3 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+}
+
+/* Day Detail Modal Styles */
+.day-detail-content {
+    max-width: 900px;
+    width: 95%;
+}
+
+.day-detail-header {
+    text-align: center;
+    margin-bottom: 30px;
+    padding: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border-radius: 15px;
+}
+
+.day-detail-title {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+}
+
+.day-detail-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 15px;
+    margin-top: 15px;
+}
+
+.detail-stat {
+    text-align: center;
+}
+
+.detail-stat-value {
+    font-size: 1.2rem;
+    font-weight: bold;
+    margin-bottom: 3px;
+}
+
+.detail-stat-label {
+    font-size: 0.9rem;
+    opacity: 0.9;
+}
+
+.day-detail-body {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 30px;
+    margin-top: 20px;
+}
+
+.detail-section h3 {
+    color: #2c3e50;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+    border-bottom: 2px solid #3498db;
+    padding-bottom: 5px;
+}
+
+.detail-slots {
+    display: grid;
+    gap: 8px;
+}
+
+.detail-slot {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border-left: 4px solid #3498db;
+}
+
+.detail-notes {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 10px;
+    border-left: 4px solid #27ae60;
+    min-height: 100px;
+    white-space: pre-wrap;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .history-buttons {
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .day-item, .week-item {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+    
+    .day-detail-body {
+        grid-template-columns: 1fr;
+    }
+}

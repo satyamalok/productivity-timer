@@ -2,6 +2,19 @@ const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, Notification, nativeIma
 const ProductivityDB = require('./database');
 const path = require('path');
 
+// Database initialization function
+async function initializeDatabase() {
+  try {
+    console.log('🗄️ Initializing database...');
+    global.db = new ProductivityDB();
+    console.log('✅ Database initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+    throw error;
+  }
+}
+
 let mainWindow;
 let tray = null;
 let appPin = '1234'; // Default PIN, will be configurable later
@@ -114,19 +127,8 @@ function createWindow() {
   console.log('✅ Window created');
 
   // Initialize database with error handling
-  try {
-    console.log('🗄️ Initializing database...');
-    global.db = new ProductivityDB();
-    console.log('✅ Database initialized successfully');
-    
-    // Setup hourly alarms only after database is ready
-    setupHourlyAlarms();
-    console.log('⏰ Alarms setup completed');
-    
-  } catch (error) {
-    console.error('❌ Database initialization failed:', error);
-    // Continue without database for now - we'll fix this
-  }
+  // Database should already be initialized by now
+  console.log('📊 Database status:', global.db ? 'Ready' : 'Not available');
 
   // Load the app
   console.log('📄 Loading HTML file...');
@@ -210,9 +212,28 @@ function createTray() {
 }
 
 // App event handlers
-app.whenReady().then(() => {
-  createWindow();
-  createTray();
+app.whenReady().then(async () => {
+  try {
+    // Initialize database first
+    await initializeDatabase();
+    
+    // Setup IPC handlers after database is ready
+    setupIPCHandlers();
+    
+    // Create window and tray
+    createWindow();
+    createTray();
+    
+    // Setup alarms after everything is ready
+    setupHourlyAlarms();
+    console.log('⏰ Alarms setup completed');
+    
+  } catch (error) {
+    console.error('❌ App initialization failed:', error);
+    // Create window anyway but with limited functionality
+    createWindow();
+    createTray();
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -229,374 +250,451 @@ app.on('window-all-closed', () => {
 });
 
 // IPC handlers (we'll add more later)
-ipcMain.handle('get-app-version', () => {
-  return app.getVersion();
-});
+// Setup all IPC handlers - called after database is ready
+function setupIPCHandlers() {
+  console.log('🔌 Setting up IPC handlers...');
+  
+  // Basic app handlers
+  ipcMain.handle('get-app-version', () => {
+    return app.getVersion();
+  });
 
-// Database IPC handlers
-// Database IPC handlers with error handling
-ipcMain.handle('get-today-data', () => {
-  try {
-    return global.db ? global.db.getTodayData() : null;
-  } catch (error) {
-    console.error('Error getting today data:', error);
-    return null;
-  }
-});
+  // Database IPC handlers with better error handling
+  ipcMain.handle('get-today-data', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-today-data');
+        return null;
+      }
+      return global.db.getTodayData();
+    } catch (error) {
+      console.error('Error getting today data:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('get-current-week-data', () => {
-  try {
-    return global.db ? global.db.getCurrentWeekData() : null;
-  } catch (error) {
-    console.error('Error getting week data:', error);
-    return null;
-  }
-});
+  ipcMain.handle('get-current-week-data', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-current-week-data');
+        return null;
+      }
+      return global.db.getCurrentWeekData();
+    } catch (error) {
+      console.error('Error getting week data:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('add-time-to-slot', (event, slotName, minutes) => {
-  try {
-    return global.db ? global.db.addTimeToSlot(slotName, minutes) : null;
-  } catch (error) {
-    console.error('Error adding time to slot:', error);
-    return null;
-  }
-});
+  ipcMain.handle('add-time-to-slot', (event, slotName, minutes) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for add-time-to-slot');
+        return null;
+      }
+      return global.db.addTimeToSlot(slotName, minutes);
+    } catch (error) {
+      console.error('Error adding time to slot:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('update-slot-time', (event, slotName, newMinutes) => {
-  try {
-    return global.db ? global.db.updateSlotTime(slotName, newMinutes) : null;
-  } catch (error) {
-    console.error('Error updating slot time:', error);
-    return null;
-  }
-});
+  ipcMain.handle('update-slot-time', (event, slotName, newMinutes) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for update-slot-time');
+        return null;
+      }
+      return global.db.updateSlotTime(slotName, newMinutes);
+    } catch (error) {
+      console.error('Error updating slot time:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('update-today-notes', (event, notes) => {
-  try {
-    return global.db ? global.db.updateTodayNotes(notes) : null;
-  } catch (error) {
-    console.error('Error updating notes:', error);
-    return null;
-  }
-});
+  ipcMain.handle('update-today-notes', (event, notes) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for update-today-notes');
+        return null;
+      }
+      return global.db.updateTodayNotes(notes);
+    } catch (error) {
+      console.error('Error updating notes:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('get-setting', (event, settingName) => {
-  try {
-    return global.db ? global.db.getSetting(settingName) : '1234'; // Default PIN
-  } catch (error) {
-    console.error('Error getting setting:', error);
-    return settingName === 'app_pin' ? '1234' : null;
-  }
-});
+  ipcMain.handle('get-setting', (event, settingName) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-setting');
+        return settingName === 'app_pin' ? '1234' : null;
+      }
+      return global.db.getSetting(settingName);
+    } catch (error) {
+      console.error('Error getting setting:', error);
+      return settingName === 'app_pin' ? '1234' : null;
+    }
+  });
 
-ipcMain.handle('update-setting', (event, settingName, settingValue) => {
-  try {
-    return global.db ? global.db.updateSetting(settingName, settingValue) : null;
-  } catch (error) {
-    console.error('Error updating setting:', error);
-    return null;
-  }
-});
+  ipcMain.handle('update-setting', (event, settingName, settingValue) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for update-setting');
+        return null;
+      }
+      return global.db.updateSetting(settingName, settingValue);
+    } catch (error) {
+      console.error('Error updating setting:', error);
+      return null;
+    }
+  });
 
-// Alarm IPC handlers
-ipcMain.handle('toggle-alarms', (event, enabled) => {
-  isAlarmsEnabled = enabled;
-  console.log(`Alarms ${enabled ? 'enabled' : 'disabled'}`);
-  return isAlarmsEnabled;
-});
+  // Weekly ranking IPC handlers
+  ipcMain.handle('update-weekly-data', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for update-weekly-data');
+        return null;
+      }
+      return global.db.updateWeeklyData();
+    } catch (error) {
+      console.error('Error updating weekly data:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('get-alarm-status', () => {
-  return isAlarmsEnabled;
-});
+  ipcMain.handle('get-weekly-ranking-data', (event, limit) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-weekly-ranking-data');
+        return [];
+      }
+      return global.db.getWeeklyRankingData(limit);
+    } catch (error) {
+      console.error('Error getting weekly ranking data:', error);
+      return [];
+    }
+  });
 
-ipcMain.handle('alarm-acknowledged', (event, timeString) => {
-  console.log(`Alarm acknowledged for ${timeString}`);
-  // You can add additional logic here if needed
-});
+  ipcMain.handle('get-current-week-rank', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-current-week-rank');
+        return null;
+      }
+      return global.db.getCurrentWeekRank();
+    } catch (error) {
+      console.error('Error getting current week rank:', error);
+      return null;
+    }
+  });
 
-// Weekly ranking IPC handlers
-ipcMain.handle('update-weekly-data', () => {
-  return global.db.updateWeeklyData();
-});
+  ipcMain.handle('get-week-stats', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-week-stats');
+        return null;
+      }
+      return global.db.getWeekStats();
+    } catch (error) {
+      console.error('Error getting week stats:', error);
+      return null;
+    }
+  });
 
-ipcMain.handle('get-weekly-ranking-data', (event, limit) => {
-  return global.db.getWeeklyRankingData(limit);
-});
+  // Current slot and hourly breakdown IPC handlers
+  ipcMain.handle('get-today-hourly-breakdown', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-today-hourly-breakdown');
+        return [];
+      }
+      return global.db.getTodayHourlyBreakdown();
+    } catch (error) {
+      console.error('Error getting today hourly breakdown:', error);
+      return [];
+    }
+  });
 
-ipcMain.handle('get-current-week-rank', () => {
-  return global.db.getCurrentWeekRank();
-});
-
-ipcMain.handle('get-week-stats', () => {
-  return global.db.getWeekStats();
-});
-
-// Current slot and hourly breakdown IPC handlers
-ipcMain.handle('get-today-hourly-breakdown', () => {
-  return global.db.getTodayHourlyBreakdown();
-});
-
-ipcMain.handle('get-current-time-slot', () => {
-  return global.db.getCurrentTimeSlot();
-});
-
+  ipcMain.handle('get-current-time-slot', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-current-time-slot');
+        return null;
+      }
+      return global.db.getCurrentTimeSlot();
+    } catch (error) {
+      console.error('Error getting current time slot:', error);
+      return null;
+    }
+  });
 // Export/Import IPC handlers
-ipcMain.handle('export-all-data', async () => {
-  try {
-    const data = global.db.exportAllDataToCSV();
-    
-    // Create CSV files
-    const dailyCSV = global.db.dailyDataToCSV(data.dailyData);
-    const weeklyCSV = global.db.weeklyDataToCSV(data.weeklyData);
-    
-    // Save files
-    const timestamp = new Date().toISOString().split('T')[0];
-    const dailyPath = global.db.saveCSVToFile(dailyCSV, `daily-data-${timestamp}.csv`);
-    const weeklyPath = global.db.saveCSVToFile(weeklyCSV, `weekly-data-${timestamp}.csv`);
-    
-    return {
-      success: true,
-      files: {
-        daily: dailyPath,
-        weekly: weeklyPath
-      },
-      data: data.totalRecords
-    };
-  } catch (error) {
-    console.error('Export error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-});
+  ipcMain.handle('export-all-data', async () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for export-all-data');
+        return { success: false, error: 'Database not available' };
+      }
+      
+      const data = global.db.exportAllDataToCSV();
+      
+      // Create CSV files
+      const dailyCSV = global.db.dailyDataToCSV(data.dailyData);
+      const weeklyCSV = global.db.weeklyDataToCSV(data.weeklyData);
+      
+      // Save files
+      const timestamp = new Date().toISOString().split('T')[0];
+      const dailyPath = global.db.saveCSVToFile(dailyCSV, `daily-data-${timestamp}.csv`);
+      const weeklyPath = global.db.saveCSVToFile(weeklyCSV, `weekly-data-${timestamp}.csv`);
+      
+      return {
+        success: true,
+        files: {
+          daily: dailyPath,
+          weekly: weeklyPath
+        },
+        data: data
+      };
+    } catch (error) {
+      console.error('Export error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
 
-ipcMain.handle('import-daily-data', async (event, filePath) => {
-  try {
-    const csvData = global.db.readCSVFromFile(filePath);
-    const result = global.db.importDailyDataFromCSV(csvData);
-    
-    return {
-      success: true,
-      ...result
-    };
-  } catch (error) {
-    console.error('Import error:', error);
-    return {
-      success: false,
-      error: error.message
-    };
-  }
-});
+  ipcMain.handle('import-daily-data', async (event, filePath) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for import-daily-data');
+        return { success: false, error: 'Database not available' };
+      }
+      
+      const csvData = global.db.readCSVFromFile(filePath);
+      const result = global.db.importDailyDataFromCSV(csvData);
+      
+      return {
+        success: true,
+        ...result
+      };
+    } catch (error) {
+      console.error('Import error:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  });
 
-ipcMain.handle('show-file-dialog', async (event, options) => {
-  const { dialog } = require('electron');
-  const result = await dialog.showOpenDialog(mainWindow, options);
-  return result;
-});
+  ipcMain.handle('show-file-dialog', async (event, options) => {
+    const { dialog } = require('electron');
+    const result = await dialog.showOpenDialog(mainWindow, options);
+    return result;
+  });
 
-ipcMain.handle('show-save-dialog', async (event, options) => {
-  const { dialog } = require('electron');
-  const result = await dialog.showSaveDialog(mainWindow, options);
-  return result;
-});
+  ipcMain.handle('show-save-dialog', async (event, options) => {
+    const { dialog } = require('electron');
+    const result = await dialog.showSaveDialog(mainWindow, options);
+    return result;
+  });
 
-// PIN protection IPC handlers - FIXED VERSION
-ipcMain.handle('close-app-confirmed', async () => {
+  // PIN protection IPC handlers
+  ipcMain.handle('close-app-confirmed', async () => {
     console.log('✅ PIN validated - closing app');
     
     // Set closing flag to prevent further close events
     isAppClosing = true;
     
     try {
-        // Clear any pending alarms
-        clearAllAlarms();
-        
-        // Close database connection
-        if (global.db) {
-            global.db.close();
-            global.db = null; // Clear the reference
-        }
-        
-        // Give a small delay to ensure cleanup
-        setTimeout(() => {
-            app.quit();
-        }, 100);
-        
-    } catch (error) {
-        console.error('Error during app closure:', error);
-        // Force quit even if there's an error
+      // Clear any pending alarms
+      clearAllAlarms();
+      
+      // Close database connection
+      if (global.db) {
+        global.db.close();
+        global.db = null; // Clear the reference
+      }
+      
+      // Give a small delay to ensure cleanup
+      setTimeout(() => {
         app.quit();
-    }
-});
-
-ipcMain.handle('validate-pin', async (event, enteredPIN) => {
-    try {
-        // Check if database is still available
-        if (!global.db || !global.db.db) {
-            console.error('❌ Database not available for PIN validation');
-            return false;
-        }
-        
-        const storedPIN = global.db.getSetting('app_pin');
-        console.log(`🔐 Validating PIN: entered=${enteredPIN}, stored=${storedPIN}`);
-        
-        return enteredPIN === storedPIN;
-        
+      }, 100);
+      
     } catch (error) {
-        console.error('PIN validation error:', error);
-        
-        // If database error, fall back to default PIN
-        if (error.message && error.message.includes('database connection is not open')) {
-            console.log('🔄 Database closed, using fallback PIN validation');
-            return enteredPIN === '1234'; // Default PIN fallback
-        }
-        
-        return false;
+      console.error('Error during app closure:', error);
+      // Force quit even if there's an error
+      app.quit();
     }
-});
+  });
 
-// History IPC handlers - Add these to main.js
-
-// Get daily data for a specific month
-ipcMain.handle('get-daily-data-for-month', async (event, year, month) => {
+  ipcMain.handle('validate-pin', async (event, enteredPIN) => {
     try {
-        console.log(`📊 Getting daily data for ${year}-${month + 1}`);
-        
-        // Calculate start and end dates for the month
-        const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
-        
-        // Get daily data from database
-        const stmt = global.db.db.prepare(`
-            SELECT date, day_name, total_minutes, notes
-            FROM daily_data 
-            WHERE date >= ? AND date <= ?
-            AND total_minutes > 0
-            ORDER BY date DESC
-        `);
-        
-        const dailyData = stmt.all(startDate, endDate);
-        
-        console.log(`✅ Found ${dailyData.length} days with data for ${year}-${month + 1}`);
-        return dailyData;
-        
+      // Check if database is still available
+      if (!global.db || !global.db.db) {
+        console.error('❌ Database not available for PIN validation');
+        return enteredPIN === '1234'; // Fallback to default PIN
+      }
+      
+      const storedPIN = global.db.getSetting('app_pin');
+      console.log(`🔐 Validating PIN: entered=${enteredPIN}, stored=${storedPIN}`);
+      
+      return enteredPIN === storedPIN;
+      
     } catch (error) {
-        console.error('Error getting daily data for month:', error);
+      console.error('PIN validation error:', error);
+      
+      // If database error, fall back to default PIN
+      if (error.message && error.message.includes('database connection is not open')) {
+        console.log('🔄 Database closed, using fallback PIN validation');
+        return enteredPIN === '1234'; // Default PIN fallback
+      }
+      
+      return false;
+    }
+  });
+
+  // Alarm IPC handlers
+  ipcMain.handle('toggle-alarms', (event, enabled) => {
+    isAlarmsEnabled = enabled;
+    console.log(`Alarms ${enabled ? 'enabled' : 'disabled'}`);
+    return isAlarmsEnabled;
+  });
+
+  ipcMain.handle('get-alarm-status', () => {
+    return isAlarmsEnabled;
+  });
+
+  ipcMain.handle('alarm-acknowledged', (event, timeString) => {
+    console.log(`Alarm acknowledged for ${timeString}`);
+    // You can add additional logic here if needed
+  });
+
+  // History IPC handlers
+  ipcMain.handle('get-daily-data-for-month', async (event, year, month) => {
+    try {
+      if (!global.db || !global.db.db) {
+        console.error('❌ Database not available for get-daily-data-for-month');
         return [];
-    }
-});
-
-// Get detailed data for a specific day
-ipcMain.handle('get-day-detail-data', async (event, dateString) => {
-    try {
-        console.log(`📋 Getting detail data for ${dateString}`);
-        
-        // Get the specific day's data
-        const dayStmt = global.db.db.prepare(`
-            SELECT * FROM daily_data WHERE date = ?
-        `);
-        
-        const dayData = dayStmt.get(dateString);
-        
-        if (!dayData) {
-            console.log(`No data found for ${dateString}`);
-            return null;
-        }
-        
-        // Extract slot data
-        const slots = [
-            { name: '5-6 AM', field: 'slot_5_6_am', minutes: dayData.slot_5_6_am || 0 },
-            { name: '6-7 AM', field: 'slot_6_7_am', minutes: dayData.slot_6_7_am || 0 },
-            { name: '7-8 AM', field: 'slot_7_8_am', minutes: dayData.slot_7_8_am || 0 },
-            { name: '8-9 AM', field: 'slot_8_9_am', minutes: dayData.slot_8_9_am || 0 },
-            { name: '9-10 AM', field: 'slot_9_10_am', minutes: dayData.slot_9_10_am || 0 },
-            { name: '10-11 AM', field: 'slot_10_11_am', minutes: dayData.slot_10_11_am || 0 },
-            { name: '11-12 PM', field: 'slot_11_12_am', minutes: dayData.slot_11_12_am || 0 },
-            { name: '12-1 PM', field: 'slot_12_1_pm', minutes: dayData.slot_12_1_pm || 0 },
-            { name: '1-2 PM', field: 'slot_1_2_pm', minutes: dayData.slot_1_2_pm || 0 },
-            { name: '2-3 PM', field: 'slot_2_3_pm', minutes: dayData.slot_2_3_pm || 0 },
-            { name: '3-4 PM', field: 'slot_3_4_pm', minutes: dayData.slot_3_4_pm || 0 },
-            { name: '4-5 PM', field: 'slot_4_5_pm', minutes: dayData.slot_4_5_pm || 0 },
-            { name: '5-6 PM', field: 'slot_5_6_pm', minutes: dayData.slot_5_6_pm || 0 },
-            { name: '6-7 PM', field: 'slot_6_7_pm', minutes: dayData.slot_6_7_pm || 0 },
-            { name: '7-8 PM', field: 'slot_7_8_pm', minutes: dayData.slot_7_8_pm || 0 },
-            { name: '8-9 PM', field: 'slot_8_9_pm', minutes: dayData.slot_8_9_pm || 0 },
-            { name: 'Other Time', field: 'other_time', minutes: dayData.other_time || 0 }
-        ].filter(slot => slot.minutes > 0); // Only include slots with time
-        
-        const result = {
-            date: dateString,
-            day_name: dayData.day_name,
-            total_minutes: dayData.total_minutes,
-            slots: slots,
-            notes: dayData.notes || ''
-        };
-        
-        console.log(`✅ Returning detail data for ${dateString}:`, result);
-        return result;
-        
+      }
+      
+      console.log(`📊 Getting daily data for ${year}-${month + 1}`);
+      
+      // Calculate start and end dates for the month
+      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      
+      // Get daily data from database
+      const stmt = global.db.db.prepare(`
+        SELECT date, day_name, total_minutes, notes
+        FROM daily_data 
+        WHERE date >= ? AND date <= ?
+        AND total_minutes > 0
+        ORDER BY date DESC
+      `);
+      
+      const dailyData = stmt.all(startDate, endDate);
+      
+      console.log(`✅ Found ${dailyData.length} days with data for ${year}-${month + 1}`);
+      return dailyData;
+      
     } catch (error) {
-        console.error('Error getting day detail data:', error);
+      console.error('Error getting daily data for month:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('get-day-detail-data', async (event, dateString) => {
+    try {
+      if (!global.db || !global.db.db) {
+        console.error('❌ Database not available for get-day-detail-data');
         return null;
-    }
-});
-
-// Get available months/years with data
-ipcMain.handle('get-available-months', async () => {
-    try {
-        console.log('📅 Getting available months with data');
-        
-        const stmt = global.db.db.prepare(`
-            SELECT DISTINCT 
-                strftime('%Y', date) as year,
-                strftime('%m', date) as month
-            FROM daily_data 
-            WHERE total_minutes > 0
-            ORDER BY year DESC, month DESC
-        `);
-        
-        const months = stmt.all();
-        
-        console.log(`✅ Found data in ${months.length} months`);
-        return months;
-        
+      }
+      
+      console.log(`📋 Getting detail data for ${dateString}`);
+      
+      // Get the specific day's data
+      const dayStmt = global.db.db.prepare(`
+        SELECT * FROM daily_data WHERE date = ?
+      `);
+      
+      const dayData = dayStmt.get(dateString);
+      return dayData;
+      
     } catch (error) {
-        console.error('Error getting available months:', error);
+      console.error('Error getting day detail data:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-available-months', async () => {
+    try {
+      if (!global.db || !global.db.db) {
+        console.error('❌ Database not available for get-available-months');
         return [];
-    }
-});
-
-// Get productivity summary for a month
-ipcMain.handle('get-month-summary', async (event, year, month) => {
-    try {
-        console.log(`📈 Getting month summary for ${year}-${month + 1}`);
-        
-        const startDate = new Date(year, month, 1).toISOString().split('T')[0];
-        const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
-        
-        const stmt = global.db.db.prepare(`
-            SELECT 
-                COUNT(*) as total_days,
-                SUM(total_minutes) as total_minutes,
-                AVG(total_minutes) as avg_minutes,
-                MAX(total_minutes) as best_day,
-                MIN(total_minutes) as worst_day
-            FROM daily_data 
-            WHERE date >= ? AND date <= ?
-            AND total_minutes > 0
-        `);
-        
-        const summary = stmt.get(startDate, endDate);
-        
-        console.log(`✅ Month summary for ${year}-${month + 1}:`, summary);
-        return summary;
-        
+      }
+      
+      const stmt = global.db.db.prepare(`
+        SELECT DISTINCT 
+          strftime('%Y', date) as year,
+          strftime('%m', date) as month
+        FROM daily_data 
+        WHERE total_minutes > 0
+        ORDER BY year DESC, month DESC
+      `);
+      
+      const months = stmt.all();
+      
+      console.log(`✅ Found data in ${months.length} months`);
+      return months;
+      
     } catch (error) {
-        console.error('Error getting month summary:', error);
-        return null;
+      console.error('Error getting available months:', error);
+      return [];
     }
-});
+  });
+
+  ipcMain.handle('get-month-summary', async (event, year, month) => {
+    try {
+      if (!global.db || !global.db.db) {
+        console.error('❌ Database not available for get-month-summary');
+        return null;
+      }
+      
+      console.log(`📈 Getting month summary for ${year}-${month + 1}`);
+      
+      const startDate = new Date(year, month, 1).toISOString().split('T')[0];
+      const endDate = new Date(year, month + 1, 0).toISOString().split('T')[0];
+      
+      const stmt = global.db.db.prepare(`
+        SELECT 
+          COUNT(*) as total_days,
+          SUM(total_minutes) as total_minutes,
+          AVG(total_minutes) as avg_minutes,
+          MAX(total_minutes) as best_day,
+          MIN(total_minutes) as worst_day
+        FROM daily_data 
+        WHERE date >= ? AND date <= ?
+        AND total_minutes > 0
+      `);
+      
+      const summary = stmt.get(startDate, endDate);
+      
+      console.log(`✅ Month summary for ${year}-${month + 1}:`, summary);
+      return summary;
+      
+    } catch (error) {
+      console.error('Error getting month summary:', error);
+      return null;
+    }
+  });
+
+  console.log('✅ All IPC handlers registered');
+}
+  
+// Database IPC handlers with error handling
 
 // Add cleanup on app quit
 app.on('before-quit', () => {

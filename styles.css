@@ -1727,3 +1727,22 @@ main {
         grid-template-columns: 1fr;
     }
 }
+
+/* Minimal fix for scrolling - add only this */
+body {
+    overflow-y: auto; /* Allow vertical scrolling */
+    overflow-x: hidden; /* Prevent horizontal scrolling */
+}
+
+.container {
+    min-height: 100vh; /* Ensure full height */
+    overflow-y: visible; /* Allow content to flow */
+}
+
+/* Only if window is too small, add scroll to main content area */
+@media (max-height: 600px) {
+    .container {
+        overflow-y: auto;
+        max-height: 100vh;
+    }
+}

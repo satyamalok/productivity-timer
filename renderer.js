@@ -160,10 +160,13 @@ setInterval(() => {
 let isAlarmDialogOpen = false;
 
 // Listen for alarm triggers from main process
-ipcRenderer.on('show-alarm-dialog', (event, timeString) => {
-  if (!isAlarmDialogOpen) {
-    showAlarmDialog(timeString);
-  }
+// Update the existing alarm listener
+ipcRenderer.on('show-alarm-dialog', async (event, timeString) => {
+    // Note: Hour boundary auto-splitting now happens automatically
+    // This alarm is just for user awareness
+    if (!isAlarmDialogOpen) {
+        showAlarmDialog(timeString);
+    }
 });
 
 function showAlarmDialog(timeString) {
@@ -1119,29 +1122,73 @@ async function handleHourlyTransition(alarmTimeString) {
     }
 }
 
+// Hour boundary auto-splitting functionality
+
+let hourBoundaryInterval = null;
+let sessionStartTime = null;
+let currentSessionSlot = null;
+
+// Enhanced start timer with session tracking
+// Enhanced startTimerEnhanced with better session tracking
+async function startTimerEnhanced() {
+    if (!isRunning) {
+        startTime = Date.now() - elapsedTime;
+        sessionStartTime = Date.now(); // Track session start
+        currentSessionSlot = currentHourSlot; // Track which slot we started in
+        
+        timerInterval = setInterval(updateTimerDisplay, 1000);
+        
+        // Start hour boundary monitoring
+        if (!hourBoundaryInterval) {
+            hourBoundaryInterval = setInterval(checkHourBoundary, 30000); // Check every 30 seconds
+        }
+        
+        isRunning = true;
+        lastCheckedHour = new Date().getHours();
+        
+        // Update button states
+        startBtn.disabled = true;
+        pauseBtn.disabled = false;
+        stopBtn.disabled = false;
+        
+        console.log(`⏰ Timer started at ${new Date().toLocaleTimeString()}`);
+        console.log(`📍 Session tracking in slot: ${currentSessionSlot}`);
+        console.log(`🕐 Current hour: ${lastCheckedHour}`);
+    }
+}
+
+// Test function to verify session tracking
+window.debugSessionInfo = function() {
+    console.log('🔍 Current Session Debug Info:');
+    console.log('- Is Running:', isRunning);
+    console.log('- Current Hour Slot:', currentHourSlot);
+    console.log('- Current Session Slot:', currentSessionSlot);
+    console.log('- Session Start Time:', sessionStartTime ? new Date(sessionStartTime).toLocaleTimeString() : 'None');
+    console.log('- Elapsed Time:', elapsedTime);
+    console.log('- Last Checked Hour:', lastCheckedHour);
+    console.log('- Current Hour:', new Date().getHours());
+};
+
+
 // Enhanced stop timer with better slot handling
+// Enhanced stop timer with proper session handling
 async function stopTimerEnhanced() {
     if (isRunning || elapsedTime > 0) {
         clearInterval(timerInterval);
+        clearInterval(hourBoundaryInterval);
+        hourBoundaryInterval = null;
+        
         isRunning = false;
         
-        // Save the elapsed time to database if there was any
+        // Save any remaining session time
         if (elapsedTime > 0) {
-            const minutes = Math.floor(elapsedTime / (1000 * 60));
-            if (minutes > 0) {
-                try {
-                    await ipcRenderer.invoke('add-time-to-slot', currentHourSlot, minutes);
-                    console.log(`💾 Manual save: ${minutes} minutes to ${currentHourSlot}`);
-                    
-                    // Update stats display
-                    updateStatsDisplay();
-                } catch (error) {
-                    console.error('Error saving time:', error);
-                }
-            }
+            await saveCurrentSession();
         }
         
+        // Reset everything
         elapsedTime = 0;
+        sessionStartTime = null;
+        currentSessionSlot = null;
         
         // Update button states
         startBtn.disabled = false;
@@ -1151,7 +1198,253 @@ async function stopTimerEnhanced() {
         // Reset display
         timerDisplay.textContent = '00:00:00';
         
-        console.log('⏹️ Timer stopped and data saved');
+        console.log('⏹️ Timer stopped and session saved');
+    }
+}
+
+// Enhanced pause timer
+async function pauseTimerEnhanced() {
+    if (isRunning) {
+        clearInterval(timerInterval);
+        clearInterval(hourBoundaryInterval);
+        hourBoundaryInterval = null;
+        
+        isRunning = false;
+        
+        // Save current session when pausing
+        await saveCurrentSession();
+        
+        // Update button states
+        startBtn.disabled = false;
+        pauseBtn.disabled = true;
+        stopBtn.disabled = false;
+        
+        console.log('⏸️ Timer paused and session saved');
+    }
+}
+
+// Save session up to hour boundary
+// Fixed saveSessionUpToHourBoundary function
+async function saveSessionUpToHourBoundary() {
+    if (!sessionStartTime || !currentSessionSlot) {
+        console.log('⚠️ No active session to save');
+        return;
+    }
+    
+    try {
+        const sessionEndTime = Date.now();
+        const sessionDuration = sessionEndTime - sessionStartTime;
+        const sessionMinutes = Math.floor(sessionDuration / (1000 * 60));
+        
+        if (sessionMinutes > 0) {
+            console.log(`💾 Auto-saving ${sessionMinutes} minutes to ${currentSessionSlot}`);
+            
+            await ipcRenderer.invoke('add-time-to-slot', currentSessionSlot, sessionMinutes);
+            
+            console.log(`✅ Auto-saved: ${sessionMinutes} minutes to ${currentSessionSlot}`);
+        } else {
+            console.log('⚠️ No minutes to save (session too short)');
+        }
+    } catch (error) {
+        console.error('❌ Error saving session at hour boundary:', error);
+    }
+}
+
+// Save current session (for pause/stop)
+// Fixed saveCurrentSession function  
+async function saveCurrentSession() {
+    if (!sessionStartTime || !currentSessionSlot) {
+        console.log('⚠️ No active session to save');
+        return;
+    }
+    
+    try {
+        // Calculate session duration from start to now
+        const sessionEndTime = Date.now();
+        const sessionDuration = sessionEndTime - sessionStartTime;
+        const sessionMinutes = Math.floor(sessionDuration / (1000 * 60));
+        
+        if (sessionMinutes > 0) {
+            console.log(`💾 Saving current session: ${sessionMinutes} minutes to ${currentSessionSlot}`);
+            
+            await ipcRenderer.invoke('add-time-to-slot', currentSessionSlot, sessionMinutes);
+            
+            // Update displays
+            updateStatsDisplay();
+            updateMainSlotsDisplay();
+            
+            console.log(`✅ Session saved: ${sessionMinutes} minutes to ${currentSessionSlot}`);
+        } else {
+            console.log('⚠️ No minutes to save (session too short)');
+        }
+    } catch (error) {
+        console.error('❌ Error saving current session:', error);
+    }
+}
+
+// Show hour transition notification
+// Enhanced showHourTransitionNotification function
+function showHourTransitionNotification(newHour, oldSlot, newSlot) {
+    if (!Notification.isSupported()) return;
+    
+    const oldSlotName = getSlotDisplayName(oldSlot);
+    const newSlotName = getSlotDisplayName(newSlot);
+    
+    const notification = new Notification('Productivity Timer', {
+        body: `Session saved to ${oldSlotName}. Now tracking ${newSlotName}`,
+        icon: path.join(__dirname, 'assets/icon.png'),
+        silent: true,
+        requireInteraction: false
+    });
+    
+    // Auto-close after 10 seconds
+    setTimeout(() => {
+        notification.close();
+    }, 10000);
+    
+    // Show in-app notification too
+    showNotification('Hour Transition', 
+        `Previous session saved to ${oldSlotName}.\nNow tracking: ${newSlotName}`, 
+        'info'
+    );
+}
+
+// Helper function to get display name from slot field
+function getSlotDisplayName(slotField) {
+    const slotMap = {
+        'slot_5_6_am': '5-6 AM',
+        'slot_6_7_am': '6-7 AM', 
+        'slot_7_8_am': '7-8 AM',
+        'slot_8_9_am': '8-9 AM',
+        'slot_9_10_am': '9-10 AM',
+        'slot_10_11_am': '10-11 AM',
+        'slot_11_12_am': '11-12 PM',
+        'slot_12_1_pm': '12-1 PM',
+        'slot_1_2_pm': '1-2 PM',
+        'slot_2_3_pm': '2-3 PM',
+        'slot_3_4_pm': '3-4 PM',
+        'slot_4_5_pm': '4-5 PM',
+        'slot_5_6_pm': '5-6 PM',
+        'slot_6_7_pm': '6-7 PM',
+        'slot_7_8_pm': '7-8 PM',
+        'slot_8_9_pm': '8-9 PM',
+        'other_time': 'Other Time'
+    };
+    
+    return slotMap[slotField] || 'Unknown Slot';
+}
+
+// Get current time slot name for given hour
+function getCurrentTimeSlotName(hour) {
+    const slotMap = {
+        5: '5-6 AM', 6: '6-7 AM', 7: '7-8 AM', 8: '8-9 AM',
+        9: '9-10 AM', 10: '10-11 AM', 11: '11-12 PM', 12: '12-1 PM',
+        13: '1-2 PM', 14: '2-3 PM', 15: '3-4 PM', 16: '4-5 PM',
+        17: '5-6 PM', 18: '6-7 PM', 19: '7-8 PM', 20: '8-9 PM'
+    };
+    
+    return slotMap[hour] || 'Other Time';
+}
+
+// Enhanced alarm handling with auto-dismiss
+function showAlarmDialog(timeString) {
+    if (isAlarmDialogOpen) return;
+    
+    isAlarmDialogOpen = true;
+    
+    // Create alarm dialog overlay
+    const overlay = document.createElement('div');
+    overlay.className = 'alarm-overlay';
+    overlay.innerHTML = `
+        <div class="alarm-dialog">
+            <div class="alarm-icon">⏰</div>
+            <h2>Hourly Check-in</h2>
+            <p>Time: ${timeString}</p>
+            <p>Session automatically saved!</p>
+            <div class="alarm-actions">
+                <button id="alarmOkBtn" class="btn btn-primary">OK - Continue</button>
+                <button id="alarmSnoozeBtn" class="btn btn-secondary">Snooze 5min</button>
+            </div>
+            <div style="margin-top: 15px; font-size: 0.9rem; color: #7f8c8d;">
+                Auto-closing in <span id="countdown">10</span> seconds...
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(overlay);
+    
+    // Countdown timer
+    let countdown = 10;
+    const countdownElement = overlay.querySelector('#countdown');
+    const countdownInterval = setInterval(() => {
+        countdown--;
+        countdownElement.textContent = countdown;
+        
+        if (countdown <= 0) {
+            clearInterval(countdownInterval);
+            if (document.body.contains(overlay)) {
+                closeAlarmDialog(overlay, timeString);
+            }
+        }
+    }, 1000);
+    
+    // Handle OK button
+    overlay.querySelector('#alarmOkBtn').addEventListener('click', () => {
+        clearInterval(countdownInterval);
+        closeAlarmDialog(overlay, timeString);
+    });
+    
+    // Handle Snooze button
+    overlay.querySelector('#alarmSnoozeBtn').addEventListener('click', () => {
+        clearInterval(countdownInterval);
+        closeAlarmDialog(overlay, timeString);
+        // Schedule snooze
+        setTimeout(() => {
+            if (!isAlarmDialogOpen) {
+                showAlarmDialog(timeString + ' (Snoozed)');
+            }
+        }, 5 * 60 * 1000);
+    });
+    
+    // Play alarm sound
+    playAlarmSound();
+}
+
+// Update existing event listeners to use enhanced functions
+function setupEventListeners() {
+    startBtn.addEventListener('click', startTimerEnhanced);
+    pauseBtn.addEventListener('click', pauseTimerEnhanced);
+    stopBtn.addEventListener('click', stopTimerEnhanced);
+}
+
+// Check for hour boundary transitions
+// Fixed checkHourBoundary function
+async function checkHourBoundary() {
+    const currentHour = new Date().getHours();
+    
+    if (currentHour !== lastCheckedHour && isRunning) {
+        console.log(`🕐 Hour boundary detected: ${lastCheckedHour} → ${currentHour}`);
+        
+        // STEP 1: Save current session to OLD slot BEFORE updating anything
+        const oldSlot = currentSessionSlot;
+        await saveSessionUpToHourBoundary();
+        
+        // STEP 2: Update to new hour slot
+        lastCheckedHour = currentHour;
+        determineCurrentHourSlot();
+        currentSessionSlot = currentHourSlot;
+        
+        // STEP 3: Reset session timing for new hour
+        sessionStartTime = Date.now();
+        elapsedTime = 0;
+        startTime = Date.now();
+        
+        // STEP 4: Show notification and update UI
+        showHourTransitionNotification(currentHour, oldSlot, currentSessionSlot);
+        updateCurrentSlot();
+        updateStatsDisplay();
+        
+        console.log(`✅ Session split: ${oldSlot} → ${currentSessionSlot}`);
     }
 }
 

@@ -94,6 +94,8 @@ function clearAllAlarms() {
 }
 
 function createWindow() {
+  console.log('🚀 Creating window...');
+  
   // Create the browser window
   mainWindow = new BrowserWindow({
     width: 1000,
@@ -102,39 +104,63 @@ function createWindow() {
       nodeIntegration: true,
       contextIsolation: false
     },
-    icon: path.join(__dirname, 'assets/icon.png'), // We'll add icon later
-    show: false // Don't show initially
+    show: true, // Show immediately for now
+    center: true,
+    resizable: true,
+    minimizable: true,
+    maximizable: true
   });
 
-  // Initialize database
-  global.db = new ProductivityDB();
+  console.log('✅ Window created');
 
-  // Setup hourly alarms
-  setupHourlyAlarms();
+  // Initialize database with error handling
+  try {
+    console.log('🗄️ Initializing database...');
+    global.db = new ProductivityDB();
+    console.log('✅ Database initialized successfully');
+    
+    // Setup hourly alarms only after database is ready
+    setupHourlyAlarms();
+    console.log('⏰ Alarms setup completed');
+    
+  } catch (error) {
+    console.error('❌ Database initialization failed:', error);
+    // Continue without database for now - we'll fix this
+  }
 
   // Load the app
-  mainWindow.loadFile('index.html');
+  console.log('📄 Loading HTML file...');
+  mainWindow.loadFile('index.html').then(() => {
+    console.log('✅ HTML loaded successfully');
+  }).catch((error) => {
+    console.error('❌ HTML load failed:', error);
+  });
 
   // Show window when ready
   mainWindow.once('ready-to-show', () => {
+    console.log('✅ Window ready to show');
     mainWindow.show();
+    mainWindow.focus();
   });
 
   // Handle close button - ask for PIN
   mainWindow.on('close', (event) => {
     if (isAppClosing) {
-      // Allow actual close if we're in closing process
       return;
     }
     
     event.preventDefault();
     console.log('🔐 Close requested - showing PIN dialog');
-    // Send request to renderer for PIN
     mainWindow.webContents.send('request-pin-for-close');
   });
 
-  // Open DevTools in development
-  // mainWindow.webContents.openDevTools();
+  // Add error handling for webContents
+  mainWindow.webContents.on('did-fail-load', (event, errorCode, errorDescription) => {
+    console.error('❌ Page failed to load:', errorCode, errorDescription);
+  });
+
+  // Temporary: Open DevTools to see any renderer errors
+  mainWindow.webContents.openDevTools();
 }
 
 function createTray() {
@@ -208,32 +234,68 @@ ipcMain.handle('get-app-version', () => {
 });
 
 // Database IPC handlers
+// Database IPC handlers with error handling
 ipcMain.handle('get-today-data', () => {
-  return global.db.getTodayData();
+  try {
+    return global.db ? global.db.getTodayData() : null;
+  } catch (error) {
+    console.error('Error getting today data:', error);
+    return null;
+  }
 });
 
 ipcMain.handle('get-current-week-data', () => {
-  return global.db.getCurrentWeekData();
+  try {
+    return global.db ? global.db.getCurrentWeekData() : null;
+  } catch (error) {
+    console.error('Error getting week data:', error);
+    return null;
+  }
 });
 
 ipcMain.handle('add-time-to-slot', (event, slotName, minutes) => {
-  return global.db.addTimeToSlot(slotName, minutes);
+  try {
+    return global.db ? global.db.addTimeToSlot(slotName, minutes) : null;
+  } catch (error) {
+    console.error('Error adding time to slot:', error);
+    return null;
+  }
 });
 
 ipcMain.handle('update-slot-time', (event, slotName, newMinutes) => {
-  return global.db.updateSlotTime(slotName, newMinutes);
+  try {
+    return global.db ? global.db.updateSlotTime(slotName, newMinutes) : null;
+  } catch (error) {
+    console.error('Error updating slot time:', error);
+    return null;
+  }
 });
 
 ipcMain.handle('update-today-notes', (event, notes) => {
-  return global.db.updateTodayNotes(notes);
+  try {
+    return global.db ? global.db.updateTodayNotes(notes) : null;
+  } catch (error) {
+    console.error('Error updating notes:', error);
+    return null;
+  }
 });
 
 ipcMain.handle('get-setting', (event, settingName) => {
-  return global.db.getSetting(settingName);
+  try {
+    return global.db ? global.db.getSetting(settingName) : '1234'; // Default PIN
+  } catch (error) {
+    console.error('Error getting setting:', error);
+    return settingName === 'app_pin' ? '1234' : null;
+  }
 });
 
 ipcMain.handle('update-setting', (event, settingName, settingValue) => {
-  return global.db.updateSetting(settingName, settingValue);
+  try {
+    return global.db ? global.db.updateSetting(settingName, settingValue) : null;
+  } catch (error) {
+    console.error('Error updating setting:', error);
+    return null;
+  }
 });
 
 // Alarm IPC handlers

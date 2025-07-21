@@ -5,27 +5,53 @@
   "scripts": {
     "start": "electron .",
     "rebuild": "electron-rebuild",
-  "postinstall": "electron-rebuild",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "postinstall": "electron-rebuild",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "electron-builder",
+    "build-win": "electron-builder --win",
+    "dist": "electron-builder --publish=never"
   },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/satyamalok/productivity-timer.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["productivity", "timer", "electron", "tracking"],
+  "author": "Your Name",
   "license": "ISC",
   "bugs": {
     "url": "https://github.com/satyamalok/productivity-timer/issues"
   },
   "homepage": "https://github.com/satyamalok/productivity-timer#readme",
-  "description": "",
+  "description": "Hourly Productivity Timer and Tracker for Windows",
   "devDependencies": {
     "electron": "^37.2.3",
+    "electron-builder": "^26.0.12",
     "electron-rebuild": "^3.2.9",
     "sqlite3": "^5.1.7"
   },
   "dependencies": {
     "better-sqlite3": "^12.2.0"
-  }
+  },
+  "build": {
+  "appId": "com.productivity.timer",
+  "productName": "Productivity Timer",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "**/*",
+    "!node_modules/**/*",
+    "node_modules/better-sqlite3/**/*"
+  ],
+  "win": {
+    "target": "nsis"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true
+  },
+  "forceCodeSigning": false
+}
 }

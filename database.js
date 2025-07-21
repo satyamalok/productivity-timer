@@ -3,11 +3,34 @@ const path = require('path');
 
 class ProductivityDB {
     constructor() {
-        // Create database in app data directory
-        const dbPath = path.join(__dirname, 'productivity.db');
+    try {
+        // Use app.getPath for proper data directory in packaged app
+        const { app } = require('electron');
+        let dbPath;
+        
+        if (app && app.getPath) {
+            // Packaged app - use userData directory
+            const userDataPath = app.getPath('userData');
+            dbPath = path.join(userDataPath, 'productivity.db');
+            console.log('📍 Database path (packaged):', dbPath);
+        } else {
+            // Development - use current directory
+            dbPath = path.join(__dirname, 'productivity.db');
+            console.log('📍 Database path (dev):', dbPath);
+        }
+        
+        console.log('🗄️ Creating database connection...');
         this.db = new Database(dbPath);
+        console.log('✅ Database connection created');
+        
         this.initializeTables();
+        console.log('✅ Database tables initialized');
+        
+    } catch (error) {
+        console.error('❌ Database constructor error:', error);
+        throw error;
     }
+}
 
     initializeTables() {
         // Create daily data table with hourly slots

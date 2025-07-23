@@ -4,28 +4,108 @@ const path = require('path');
 class ProductivityDB {
     constructor() {
     try {
-        // Use app.getPath for proper data directory in packaged app
-        const { app } = require('electron');
-        let dbPath;
-        
-        if (app && app.getPath) {
-            // Packaged app - use userData directory
-            const userDataPath = app.getPath('userData');
-            dbPath = path.join(userDataPath, 'productivity.db');
-            console.log('📍 Database path (packaged):', dbPath);
-        } else {
-            // Development - use current directory
+        // Better path resolution for both dev and packaged app
+        let dbPath;        
+               
+        try {
+            const { app } = require('electron');
+            
+            // Always try to use userData path if app is available
+            if (app && app.getPath) {
+                const userDataPath = app.getPath('userData');
+                dbPath = path.join(userDataPath, 'productivity.db');
+                console.log('📍 Database path (userData):', dbPath);
+            } else {
+                throw new Error('Electron app not available');
+            }
+        } catch (error) {
+            // Development fallback
             dbPath = path.join(__dirname, 'productivity.db');
-            console.log('📍 Database path (dev):', dbPath);
+            console.log('📍 Database path (development):', dbPath);
+        }
+
+        // Ensure directory exists for packaged app
+        // Ensure directory exists and is writable
+        const fs = require('fs');
+        const dbDir = path.dirname(dbPath);
+        
+        console.log('🔍 Checking directory:', dbDir);
+        
+        // Create directory if it doesn't exist
+        if (!fs.existsSync(dbDir)) {
+            console.log('📁 Creating database directory:', dbDir);
+            try {
+                fs.mkdirSync(dbDir, { recursive: true });
+                console.log('✅ Directory created successfully');
+            } catch (createError) {
+                console.error('❌ Failed to create directory:', createError);
+                throw createError;
+            }
+        } else {
+            console.log('✅ Directory already exists');
         }
         
-        console.log('🗄️ Creating database connection...');
-        this.db = new Database(dbPath);
-        console.log('✅ Database connection created');
+        // Test write permissions
+        try {
+            const testFile = path.join(dbDir, 'test-write.tmp');
+            fs.writeFileSync(testFile, 'test');
+            fs.unlinkSync(testFile);
+            console.log('✅ Directory is writable');
+        } catch (writeError) {
+            console.error('❌ Directory not writable:', writeError);
+            console.log('🔄 Falling back to temp directory');
+            
+            // Fallback to OS temp directory
+            const os = require('os');
+            const tempDbPath = path.join(os.tmpdir(), 'productivity-timer', 'productivity.db');
+            console.log('📍 Fallback database path:', tempDbPath);
+            
+            // Create temp directory
+            const tempDir = path.dirname(tempDbPath);
+            if (!fs.existsSync(tempDir)) {
+                fs.mkdirSync(tempDir, { recursive: true });
+            }
+            
+            dbPath = tempDbPath;
+        }
         
-        this.initializeTables();
-        console.log('✅ Database tables initialized');
+        console.log('🗄️ Attempting to create database connection...');
+        console.log('📍 Final database path:', dbPath);
         
+        try {
+            // Try to create the database
+            this.db = new Database(dbPath);
+            console.log('✅ Database connection created successfully');
+            
+            // Test the connection
+            this.db.pragma('user_version');
+            console.log('✅ Database connection tested successfully');
+            
+            this.initializeTables();
+            console.log('✅ Database tables initialized successfully');
+            
+        } catch (dbError) {
+            console.error('❌ Database creation failed:', dbError);
+            
+            // Try one more fallback to a guaranteed writable location
+            const os = require('os');
+            const fallbackPath = path.join(os.tmpdir(), `productivity-${Date.now()}.db`);
+            console.log('🔄 Trying fallback path:', fallbackPath);
+            
+            try {
+                this.db = new Database(fallbackPath);
+                console.log('✅ Fallback database created successfully');
+                this.initializeTables();
+                console.log('✅ Tables initialized on fallback database');
+                
+                // Update the path for logging
+                dbPath = fallbackPath;
+            } catch (fallbackError) {
+                console.error('❌ All database creation attempts failed:', fallbackError);
+                throw fallbackError;
+            }
+        }
+
     } catch (error) {
         console.error('❌ Database constructor error:', error);
         throw error;

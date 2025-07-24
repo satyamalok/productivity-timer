@@ -691,6 +691,100 @@ function setupIPCHandlers() {
     }
   });
 
+  //ipc handles updated for json by satyam
+
+  // Additional IPC handlers that were missing
+  ipcMain.handle('add-time-to-slot', (event, slotName, minutes) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for add-time-to-slot');
+        return null;
+      }
+      return global.db.addTimeToSlot(slotName, minutes);
+    } catch (error) {
+      console.error('Error adding time to slot:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-current-week-rank', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-current-week-rank');
+        return null;
+      }
+      return global.db.getCurrentWeekRank();
+    } catch (error) {
+      console.error('Error getting current week rank:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-week-stats', () => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-week-stats');
+        return null;
+      }
+      return global.db.getWeekStats();
+    } catch (error) {
+      console.error('Error getting week stats:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-daily-data-for-month', (event, year, month) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-daily-data-for-month');
+        return [];
+      }
+      return global.db.getDailyDataForMonth(year, month);
+    } catch (error) {
+      console.error('Error getting daily data for month:', error);
+      return [];
+    }
+  });
+
+  ipcMain.handle('validate-pin', (event, pin) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for PIN validation');
+        return false;
+      }
+      return global.db.validatePIN(pin);
+    } catch (error) {
+      console.error('Error validating PIN:', error);
+      return false;
+    }
+  });
+
+  ipcMain.handle('update-daily-data', (event, date, slotData) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for update-daily-data');
+        return null;
+      }
+      return global.db.updateDailyData(date, slotData);
+    } catch (error) {
+      console.error('Error updating daily data:', error);
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-data-for-date', (event, date) => {
+    try {
+      if (!global.db) {
+        console.error('❌ Database not available for get-data-for-date');
+        return null;
+      }
+      return global.db.getDataForDate(date);
+    } catch (error) {
+      console.error('Error getting data for date:', error);
+      return null;
+    }
+  });
+
   console.log('✅ All IPC handlers registered');
 }
   

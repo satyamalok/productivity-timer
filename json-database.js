@@ -572,6 +572,230 @@ class ProductivityJSONDB {
         this.saveData();
         return this.data.settings;
     }
+
+    //new updates by satyam
+
+    // Missing functions that need to be added to json-database.js
+
+    // Get current week rank
+    getCurrentWeekRank() {
+        const currentWeek = this.getCurrentWeekData();
+        return currentWeek ? { rank: currentWeek.rank, total: this.data.weeklyData.length } : { rank: 0, total: 0 };
+    }
+
+    // Get week statistics
+    getWeekStats() {
+        const totalWeeks = this.data.weeklyData.length;
+        const currentWeek = this.getCurrentWeekData();
+        const averageMinutes = totalWeeks > 0 ? 
+            this.data.weeklyData.reduce((sum, week) => sum + week.totalMinutes, 0) / totalWeeks : 0;
+        
+        return {
+            currentWeek: currentWeek,
+            totalWeeks: totalWeeks,
+            averageMinutes: Math.round(averageMinutes),
+            averageHours: this.formatMinutesToHours(Math.round(averageMinutes)),
+            bestWeek: totalWeeks > 0 ? this.data.weeklyData[0] : null // First in sorted array
+        };
+    }
+
+    // Add time to specific slot
+    addTimeToSlot(slotName, minutesToAdd) {
+        const today = this.getTodayDateString();
+        this.initializeTodayData();
+        
+        // Convert display slot names to internal slot names
+        const slotMapping = {
+            '5-6 AM': '5-6am',
+            '6-7 AM': '6-7am',
+            '7-8 AM': '7-8am',
+            '8-9 AM': '8-9am',
+            '9-10 AM': '9-10am',
+            '10-11 AM': '10-11am',
+            '11-12 AM': '11-12pm',
+            '12-1 PM': '12-1pm',
+            '1-2 PM': '1-2pm',
+            '2-3 PM': '2-3pm',
+            '3-4 PM': '3-4pm',
+            '4-5 PM': '4-5pm',
+            '5-6 PM': '5-6pm',
+            '6-7 PM': '6-7pm',
+            '7-8 PM': '7-8pm',
+            '8-9 PM': '8-9pm',
+            'Other': 'other'
+        };
+        
+        const internalSlotName = slotMapping[slotName] || slotName;
+        
+        // Add time to the slot
+        this.data.dailyData[today].slots[internalSlotName] = 
+            (this.data.dailyData[today].slots[internalSlotName] || 0) + minutesToAdd;
+        
+        // Recalculate total
+        this.data.dailyData[today].totalMinutes = Object.values(this.data.dailyData[today].slots)
+            .reduce((sum, val) => sum + val, 0);
+        
+        this.saveData();
+        this.updateWeeklyData();
+        
+        return this.data.dailyData[today];
+    }
+
+    // Get daily data for a specific month
+    getDailyDataForMonth(year, month) {
+        const monthData = [];
+        const startDate = new Date(year, month - 1, 1);
+        const endDate = new Date(year, month, 0); // Last day of month
+        
+        for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            const dayData = this.data.dailyData[dateStr];
+            
+            if (dayData) {
+                monthData.push({
+                    date: dateStr,
+                    day_name: dayData.dayName,
+                    total_minutes: dayData.totalMinutes,
+                    total_hours: this.formatMinutesToHours(dayData.totalMinutes)
+                });
+            }
+        }
+        
+        return monthData;
+    }
+
+    // Validate PIN (from settings)
+    validatePIN(inputPin) {
+        return this.data.settings.appPin === inputPin;
+    }
+
+    // Update daily data with time slots
+    updateDailyData(date, slotData) {
+        if (!this.data.dailyData[date]) {
+            this.data.dailyData[date] = {
+                dayName: this.getDayName(date),
+                slots: {
+                    '5-6am': 0, '6-7am': 0, '7-8am': 0, '8-9am': 0,
+                    '9-10am': 0, '10-11am': 0, '11-12pm': 0, '12-1pm': 0,
+                    '1-2pm': 0, '2-3pm': 0, '3-4pm': 0, '4-5pm': 0,
+                    '5-6pm': 0, '6-7pm': 0, '7-8pm': 0, '8-9pm': 0,
+                    'other': 0
+                },
+                totalMinutes: 0,
+                notes: ""
+            };
+        }
+        
+        // Update slots
+        Object.keys(slotData.slots).forEach(slot => {
+            this.data.dailyData[date].slots[slot] = slotData.slots[slot];
+        });
+        
+        // Recalculate total
+        this.data.dailyData[date].totalMinutes = Object.values(this.data.dailyData[date].slots)
+            .reduce((sum, val) => sum + val, 0);
+        
+        // Update notes if provided
+        if (slotData.notes !== undefined) {
+            this.data.dailyData[date].notes = slotData.notes;
+        }
+        
+        this.saveData();
+        this.updateWeeklyData();
+        
+        return this.data.dailyData[date];
+    }
+
+    // Get data for a specific date
+    getDataForDate(date) {
+        if (this.data.dailyData[date]) {
+            const dayData = this.data.dailyData[date];
+            return {
+                date: date,
+                day_name: dayData.dayName,
+                slot_5_6_am: dayData.slots['5-6am'] || 0,
+                slot_6_7_am: dayData.slots['6-7am'] || 0,
+                slot_7_8_am: dayData.slots['7-8am'] || 0,
+                slot_8_9_am: dayData.slots['8-9am'] || 0,
+                slot_9_10_am: dayData.slots['9-10am'] || 0,
+                slot_10_11_am: dayData.slots['10-11am'] || 0,
+                slot_11_12_am: dayData.slots['11-12pm'] || 0,
+                slot_12_1_pm: dayData.slots['12-1pm'] || 0,
+                slot_1_2_pm: dayData.slots['1-2pm'] || 0,
+                slot_2_3_pm: dayData.slots['2-3pm'] || 0,
+                slot_3_4_pm: dayData.slots['3-4pm'] || 0,
+                slot_4_5_pm: dayData.slots['4-5pm'] || 0,
+                slot_5_6_pm: dayData.slots['5-6pm'] || 0,
+                slot_6_7_pm: dayData.slots['6-7pm'] || 0,
+                slot_7_8_pm: dayData.slots['7-8pm'] || 0,
+                slot_8_9_pm: dayData.slots['8-9pm'] || 0,
+                other_time: dayData.slots['other'] || 0,
+                total_minutes: dayData.totalMinutes,
+                notes: dayData.notes || ''
+            };
+        }
+        return null;
+    }
+
+    // Close function (for compatibility - JSON doesn't need closing)
+    close() {
+        console.log('📄 JSON database closed (no action needed)');
+        // Create final backup before closing
+        this.createBackup();
+    }
+
+    // Get recent daily data (last N days)
+    getRecentDailyData(days = 7) {
+        const recentData = [];
+        const today = new Date();
+        
+        for (let i = days - 1; i >= 0; i--) {
+            const date = new Date(today);
+            date.setDate(today.getDate() - i);
+            const dateStr = date.toISOString().split('T')[0];
+            
+            const dayData = this.data.dailyData[dateStr];
+            if (dayData) {
+                recentData.push({
+                    date: dateStr,
+                    day_name: dayData.dayName,
+                    total_minutes: dayData.totalMinutes,
+                    total_hours: this.formatMinutesToHours(dayData.totalMinutes)
+                });
+            } else {
+                recentData.push({
+                    date: dateStr,
+                    day_name: this.getDayName(dateStr),
+                    total_minutes: 0,
+                    total_hours: '0m'
+                });
+            }
+        }
+        
+        return recentData;
+    }
+
+    // Add minutes to a specific time slot by slot key
+    addMinutesToTimeSlot(slotKey, minutes) {
+        const today = this.getTodayDateString();
+        this.initializeTodayData();
+        
+        if (this.data.dailyData[today].slots.hasOwnProperty(slotKey)) {
+            this.data.dailyData[today].slots[slotKey] = 
+                (this.data.dailyData[today].slots[slotKey] || 0) + minutes;
+            
+            // Recalculate total
+            this.data.dailyData[today].totalMinutes = Object.values(this.data.dailyData[today].slots)
+                .reduce((sum, val) => sum + val, 0);
+            
+            this.saveData();
+            this.updateWeeklyData();
+            
+            return this.data.dailyData[today];
+        }
+        
+        throw new Error(`Invalid slot key: ${slotKey}`);
+    }
 }
 
 module.exports = ProductivityJSONDB;

@@ -1,16 +1,16 @@
 const { app, BrowserWindow, ipcMain, Menu, Tray, dialog, Notification, nativeImage } = require('electron');
-const ProductivityDB = require('./database');
+const ProductivityJSONDB = require('./json-database');
 const path = require('path');
 
 // Database initialization function
 async function initializeDatabase() {
   try {
-    console.log('🗄️ Initializing database...');
-    global.db = new ProductivityDB();
-    console.log('✅ Database initialized successfully');
+    console.log('🗄️ Initializing JSON database...');
+    global.db = new ProductivityJSONDB();
+    console.log('✅ JSON database initialized successfully');
     return true;
   } catch (error) {
-    console.error('❌ Database initialization failed:', error);
+    console.error('❌ JSON database initialization failed:', error);
     throw error;
   }
 }

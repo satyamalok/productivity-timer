@@ -10,6 +10,8 @@ out/
 *.db
 *.sqlite
 *.sqlite3
+productivity-data.json
+backups/
 
 # Logs
 logs

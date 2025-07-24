@@ -27,24 +27,40 @@
   },
   "dependencies": {},
   "build": {
-    "appId": "com.productivity.timer",
-    "productName": "Productivity Timer",
-    "directories": {
-      "output": "dist"
-    },
-    "files": [
-      "**/*",
-      "!node_modules/**/*"
+  "appId": "com.productivity.timer",
+  "productName": "Productivity Timer",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "**/*",
+    "!node_modules/**/*"
+  ],
+  "win": {
+    "target": [
+      {
+        "target": "nsis",
+        "arch": [
+          "x64"
+        ]
+      }
     ],
-    "win": {
-      "target": "nsis"
-    },
-    "nsis": {
-      "oneClick": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
-    },
-    "forceCodeSigning": false
-  }
+    "requestedExecutionLevel": "asInvoker"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "Productivity Timer",
+    "uninstallDisplayName": "Productivity Timer",
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": true,
+    "allowElevation": true,
+    "perMachine": false,
+    "menuCategory": "Productivity"
+  },
+  "forceCodeSigning": false
+}
+
 }

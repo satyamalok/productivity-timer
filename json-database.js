@@ -33,7 +33,16 @@ class ProductivityJSONDB {
             // Load existing data
             this.loadData();
             
+            // Clean up any inconsistent slot data
+            // Clean up any inconsistent slot data
+            this.cleanupSlotData();
+            
+            // Recalculate week data with proper Monday-Sunday logic
+            this.recalculateAllWeekData();
+            this.fixWeekNumbers();
+            
             console.log('✅ JSON database initialized successfully');
+
         } catch (error) {
             console.error('❌ JSON database initialization failed:', error);
             throw error;
@@ -147,8 +156,35 @@ class ProductivityJSONDB {
     }
 
     // Get today's data
+    // Fix getTodayData to return proper format for renderer
     getTodayData() {
-        return this.initializeTodayData();
+        const todayData = this.initializeTodayData();
+        
+        // Return format that matches what renderer expects
+        return {
+            date: this.getTodayDateString(),
+            day_name: todayData.dayName,
+            total_minutes: todayData.totalMinutes,
+            notes: todayData.notes,
+            // Add individual slot data for compatibility
+            slot_5_6_am: todayData.slots['5-6am'] || 0,
+            slot_6_7_am: todayData.slots['6-7am'] || 0,
+            slot_7_8_am: todayData.slots['7-8am'] || 0,
+            slot_8_9_am: todayData.slots['8-9am'] || 0,
+            slot_9_10_am: todayData.slots['9-10am'] || 0,
+            slot_10_11_am: todayData.slots['10-11am'] || 0,
+            slot_11_12_am: todayData.slots['11-12pm'] || 0,
+            slot_12_1_pm: todayData.slots['12-1pm'] || 0,
+            slot_1_2_pm: todayData.slots['1-2pm'] || 0,
+            slot_2_3_pm: todayData.slots['2-3pm'] || 0,
+            slot_3_4_pm: todayData.slots['3-4pm'] || 0,
+            slot_4_5_pm: todayData.slots['4-5pm'] || 0,
+            slot_5_6_pm: todayData.slots['5-6pm'] || 0,
+            slot_6_7_pm: todayData.slots['6-7pm'] || 0,
+            slot_7_8_pm: todayData.slots['7-8pm'] || 0,
+            slot_8_9_pm: todayData.slots['8-9pm'] || 0,
+            other_time: todayData.slots['other'] || 0
+        };
     }
 
     // Update time slot
@@ -188,30 +224,7 @@ class ProductivityJSONDB {
     }
 
     // Get today's hourly breakdown
-    getTodayHourlyBreakdown() {
-        const todayData = this.getTodayData();
-        const breakdown = [];
-        
-        const slotLabels = {
-            '5-6am': '5-6 AM', '6-7am': '6-7 AM', '7-8am': '7-8 AM', '8-9am': '8-9 AM',
-            '9-10am': '9-10 AM', '10-11am': '10-11 AM', '11-12pm': '11-12 AM', '12-1pm': '12-1 PM',
-            '1-2pm': '1-2 PM', '2-3pm': '2-3 PM', '3-4pm': '3-4 PM', '4-5pm': '4-5 PM',
-            '5-6pm': '5-6 PM', '6-7pm': '6-7 PM', '7-8pm': '7-8 PM', '8-9pm': '8-9 PM',
-            'other': 'Other'
-        };
-        
-        Object.entries(todayData.slots).forEach(([slot, minutes]) => {
-            if (minutes > 0) {
-                breakdown.push({
-                    slot: slotLabels[slot] || slot,
-                    minutes: minutes,
-                    hours: this.formatMinutesToHours(minutes)
-                });
-            }
-        });
-        
-        return breakdown;
-    }
+    
 
     // Format minutes to hours
     formatMinutesToHours(minutes) {
@@ -266,29 +279,102 @@ class ProductivityJSONDB {
         this.saveData();
     }
 
-    // Get current week number
-    getCurrentWeekNumber() {
-        const date = new Date();
-        const firstDayOfYear = new Date(date.getFullYear(), 0, 1);
-        const pastDaysOfYear = (date - firstDayOfYear) / 86400000;
-        return Math.ceil((pastDaysOfYear + firstDayOfYear.getDay() + 1) / 7);
+    // Get current week number (Monday-Sunday) - Fixed calculation
+getCurrentWeekNumber() {
+    const today = new Date();
+    
+    // Get Monday of current week
+    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
+    const daysFromMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1; // Sunday is 6 days from Monday
+    
+    const currentMonday = new Date(today);
+    currentMonday.setDate(today.getDate() - daysFromMonday);
+    currentMonday.setHours(0, 0, 0, 0);
+    
+    // Get the first Monday of the year
+    const year = today.getFullYear();
+    const jan1 = new Date(year, 0, 1);
+    const jan1Day = jan1.getDay();
+    
+    // Calculate days to first Monday
+    let daysToFirstMonday;
+    if (jan1Day === 1) {
+        daysToFirstMonday = 0; // Jan 1 is Monday
+    } else if (jan1Day === 0) {
+        daysToFirstMonday = 1; // Jan 1 is Sunday, Monday is next day
+    } else {
+        daysToFirstMonday = 8 - jan1Day; // Days to reach next Monday
     }
+    
+    const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
+    
+    // Calculate week number
+    const weekNumber = Math.floor((currentMonday - firstMonday) / (7 * 24 * 60 * 60 * 1000)) + 1;
+    
+    console.log(`📅 Today: ${today.toDateString()}`);
+    console.log(`📅 Current Monday: ${currentMonday.toDateString()}`);
+    console.log(`📅 First Monday of ${year}: ${firstMonday.toDateString()}`);
+    console.log(`📅 Week Number: ${weekNumber}`);
+    
+    return weekNumber;
+}
 
-    // Get dates for a specific week
-    getWeekDates(year, weekNumber) {
-        const firstDayOfYear = new Date(year, 0, 1);
-        const daysOffset = (weekNumber - 1) * 7;
-        const weekStart = new Date(firstDayOfYear.getTime() + daysOffset * 86400000);
+    
+    // Helper function to get week number for any date
+    getWeekNumberForDate(date) {
+        const d = new Date(date);
+        const dayOfWeek = d.getDay();
+        const daysFromMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
         
-        const dates = [];
-        for (let i = 0; i < 7; i++) {
-            const date = new Date(weekStart);
-            date.setDate(weekStart.getDate() + i);
-            dates.push(date.toISOString().split('T')[0]);
+        const monday = new Date(d);
+        monday.setDate(d.getDate() - daysFromMonday);
+        monday.setHours(0, 0, 0, 0);
+        
+        const jan1 = new Date(monday.getFullYear(), 0, 1);
+        const jan1DayOfWeek = jan1.getDay();
+        const daysToFirstMonday = (jan1DayOfWeek === 1) ? 0 : (8 - jan1DayOfWeek) % 7;
+        const firstMonday = new Date(jan1);
+        firstMonday.setDate(jan1.getDate() + daysToFirstMonday);
+        
+        if (monday < firstMonday) {
+            return 52; // Assume 52 weeks in previous year
         }
-        return dates;
+        
+        return Math.floor((monday - firstMonday) / (7 * 24 * 60 * 60 * 1000)) + 1;
     }
 
+    // Get dates for a specific week (Monday-Sunday) - Fixed calculation
+getWeekDates(year, weekNumber) {
+    // Get the first Monday of the year
+    const jan1 = new Date(year, 0, 1);
+    const jan1Day = jan1.getDay();
+    
+    let daysToFirstMonday;
+    if (jan1Day === 1) {
+        daysToFirstMonday = 0; // Jan 1 is Monday
+    } else if (jan1Day === 0) {
+        daysToFirstMonday = 1; // Jan 1 is Sunday, Monday is next day
+    } else {
+        daysToFirstMonday = 8 - jan1Day; // Days to reach next Monday
+    }
+    
+    const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
+    
+    // Calculate the Monday of the requested week
+    const targetMonday = new Date(firstMonday);
+    targetMonday.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
+    
+    // Generate 7 days starting from Monday
+    const dates = [];
+    for (let i = 0; i < 7; i++) {
+        const date = new Date(targetMonday);
+        date.setDate(targetMonday.getDate() + i);
+        dates.push(date.toISOString().split('T')[0]);
+    }
+    
+    console.log(`📅 Week ${weekNumber}, ${year}: ${dates[0]} (Mon) to ${dates[6]} (Sun)`);
+    return dates;
+}
     // Get week date range string
     getWeekDateRange(weekDates) {
         const startDate = new Date(weekDates[0]);
@@ -311,21 +397,22 @@ class ProductivityJSONDB {
         });
     }
 
-    // Get current week data
-    getCurrentWeekData() {
-        const currentWeek = this.getCurrentWeekNumber();
-        const currentYear = new Date().getFullYear();
-        
-        return this.data.weeklyData.find(w => 
-            w.weekNumber === currentWeek && w.year === currentYear
-        ) || null;
-    }
-
-    // Get weekly ranking data
+    // Fix getWeeklyRankingData to return proper format
     getWeeklyRankingData(limit = 10) {
+        // Update rankings first
+        this.updateWeeklyRankings();
+        
         return this.data.weeklyData
             .sort((a, b) => b.totalMinutes - a.totalMinutes)
-            .slice(0, limit);
+            .slice(0, limit)
+            .map(week => ({
+                week_number: week.weekNumber,
+                year: week.year,
+                date_range: week.dateRange,
+                total_minutes: week.totalMinutes,
+                total_hours_formatted: week.totalHours,
+                rank: week.rank
+            }));
     }
 
     // Export data to CSV format
@@ -796,6 +883,481 @@ class ProductivityJSONDB {
         
         throw new Error(`Invalid slot key: ${slotKey}`);
     }
+
+    // Missing functions for complete functionality
+
+    // Update specific slot time (replace, not add)
+    updateSlotTime(slotField, newMinutes) {
+        const today = this.getTodayDateString();
+        this.initializeTodayData();
+        
+        // Convert display names to internal names if needed
+        const slotMapping = {
+            '5-6 AM': '5-6am', '6-7 AM': '6-7am', '7-8 AM': '7-8am', '8-9 AM': '8-9am',
+            '9-10 AM': '9-10am', '10-11 AM': '10-11am', '11-12 AM': '11-12pm', '12-1 PM': '12-1pm',
+            '1-2 PM': '1-2pm', '2-3 PM': '2-3pm', '3-4 PM': '3-4pm', '4-5 PM': '4-5pm',
+            '5-6 PM': '5-6pm', '6-7 PM': '6-7pm', '7-8 PM': '7-8pm', '8-9 PM': '8-9pm',
+            'Other': 'other',
+            // Also handle internal names directly
+            'slot_5_6_am': '5-6am', 'slot_6_7_am': '6-7am', 'slot_7_8_am': '7-8am', 'slot_8_9_am': '8-9am',
+            'slot_9_10_am': '9-10am', 'slot_10_11_am': '10-11am', 'slot_11_12_am': '11-12pm', 'slot_12_1_pm': '12-1pm',
+            'slot_1_2_pm': '1-2pm', 'slot_2_3_pm': '2-3pm', 'slot_3_4_pm': '3-4pm', 'slot_4_5_pm': '4-5pm',
+            'slot_5_6_pm': '5-6pm', 'slot_6_7_pm': '6-7pm', 'slot_7_8_pm': '7-8pm', 'slot_8_9_pm': '8-9pm',
+            'other_time': 'other'
+        };
+        
+        const internalSlotName = slotMapping[slotField] || slotField;
+        
+        // Set the exact time (replace, not add)
+        this.data.dailyData[today].slots[internalSlotName] = newMinutes;
+        
+        // Recalculate total
+        this.data.dailyData[today].totalMinutes = Object.values(this.data.dailyData[today].slots)
+            .reduce((sum, val) => sum + val, 0);
+        
+        this.saveData();
+        this.updateWeeklyData();
+        
+        return this.data.dailyData[today];
+    }
+
+    // Update today's notes
+    updateTodayNotes(notes) {
+        const today = this.getTodayDateString();
+        this.initializeTodayData();
+        
+        this.data.dailyData[today].notes = notes || '';
+        this.saveData();
+        
+        return this.data.dailyData[today];
+    }
+
+    // Get setting value
+    getSetting(settingName) {
+        if (settingName === 'app_pin') {
+            return this.data.settings.appPin || '1234';
+        }
+        return this.data.settings[settingName] || null;
+    }
+
+    // Update setting value
+    updateSetting(settingName, settingValue) {
+        if (settingName === 'app_pin') {
+            this.data.settings.appPin = settingValue;
+        } else {
+            this.data.settings[settingName] = settingValue;
+        }
+        
+        this.saveData();
+        return this.data.settings;
+    }
+
+    // Get month summary for history features
+    getMonthSummary(year, month) {
+        const monthData = this.getDailyDataForMonth(year, month);
+        
+        if (monthData.length === 0) {
+            return {
+                total_days: 0,
+                total_minutes: 0,
+                avg_minutes: 0,
+                best_day: 0,
+                worst_day: 0
+            };
+        }
+        
+        const totalMinutes = monthData.reduce((sum, day) => sum + day.total_minutes, 0);
+        const avgMinutes = Math.round(totalMinutes / monthData.length);
+        const bestDay = Math.max(...monthData.map(day => day.total_minutes));
+        const worstDay = Math.min(...monthData.map(day => day.total_minutes));
+        
+        return {
+            total_days: monthData.length,
+            total_minutes: totalMinutes,
+            avg_minutes: avgMinutes,
+            best_day: bestDay,
+            worst_day: worstDay
+        };
+    }
+
+    // Fix getCurrentTimeSlot to return proper format
+    getCurrentTimeSlot() {
+        const now = new Date();
+        const hour = now.getHours();
+        
+        const slotMap = {
+            5: '5-6 AM', 6: '6-7 AM', 7: '7-8 AM', 8: '8-9 AM',
+            9: '9-10 AM', 10: '10-11 AM', 11: '11-12 PM', 12: '12-1 PM',
+            13: '1-2 PM', 14: '2-3 PM', 15: '3-4 PM', 16: '4-5 PM',
+            17: '5-6 PM', 18: '6-7 PM', 19: '7-8 PM', 20: '8-9 PM'
+        };
+        
+        return {
+            currentSlot: slotMap[hour] || 'Other Time',
+            hour: hour,
+            displayTime: now.toLocaleTimeString()
+        };
+    }
+
+    // Fix getTodayHourlyBreakdown to return proper format
+    // Fix getTodayHourlyBreakdown to return proper display names
+    getTodayHourlyBreakdown() {
+        const todayData = this.getTodayData();
+        const breakdown = [];
+        
+        const slotLabels = {
+            '5-6am': '5-6 AM', '6-7am': '6-7 AM', '7-8am': '7-8 AM', '8-9am': '8-9 AM',
+            '9-10am': '9-10 AM', '10-11am': '10-11 AM', '11-12pm': '11-12 PM', '12-1pm': '12-1 PM',
+            '1-2pm': '1-2 PM', '2-3pm': '2-3 PM', '3-4pm': '3-4 PM', '4-5pm': '4-5 PM',
+            '5-6pm': '5-6 PM', '6-7pm': '6-7 PM', '7-8pm': '7-8 PM', '8-9pm': '8-9 PM',
+            'other': 'Other Time'
+        };
+        
+        const slotFields = {
+            '5-6am': 'slot_5_6_am', '6-7am': 'slot_6_7_am', '7-8am': 'slot_7_8_am', '8-9am': 'slot_8_9_am',
+            '9-10am': 'slot_9_10_am', '10-11am': 'slot_10_11_am', '11-12pm': 'slot_11_12_am', '12-1pm': 'slot_12_1_pm',
+            '1-2pm': 'slot_1_2_pm', '2-3pm': 'slot_2_3_pm', '3-4pm': 'slot_3_4_pm', '4-5pm': 'slot_4_5_pm',
+            '5-6pm': 'slot_5_6_pm', '6-7pm': 'slot_6_7_pm', '7-8pm': 'slot_7_8_pm', '8-9pm': 'slot_8_9_pm',
+            'other': 'other_time'
+        };
+        
+        // Use the internal data structure
+        const internalData = this.data.dailyData[this.getTodayDateString()];
+        if (internalData && internalData.slots) {
+            Object.entries(internalData.slots).forEach(([slot, minutes]) => {
+                if (minutes > 0) {
+                    breakdown.push({
+                        name: slotLabels[slot] || slot,
+                        field: slotFields[slot] || slot,
+                        minutes: minutes,
+                        hours: this.formatMinutesToHours(minutes)
+                    });
+                }
+            });
+        }
+        
+        return breakdown;
+    }
+
+    // Fix getCurrentWeekData to return proper format
+    getCurrentWeekData() {
+        this.updateWeeklyData(); // Ensure it's up to date
+        
+        const currentWeek = this.getCurrentWeekNumber();
+        const currentYear = new Date().getFullYear();
+        
+        const weekData = this.data.weeklyData.find(w => 
+            w.weekNumber === currentWeek && w.year === currentYear
+        );
+        
+        if (weekData) {
+            return {
+                week_number: weekData.weekNumber,
+                year: weekData.year,
+                date_range: weekData.dateRange,
+                total_minutes: weekData.totalMinutes,
+                total_hours_formatted: weekData.totalHours,
+                rank: weekData.rank,
+                days_with_data: weekData.daysWithData
+            };
+        }
+        
+        // Return default structure if no data
+        return {
+            week_number: currentWeek,
+            year: currentYear,
+            date_range: this.getWeekDateRange(this.getWeekDates(currentYear, currentWeek)),
+            total_minutes: 0,
+            total_hours_formatted: '0H 0M',
+            rank: 1,
+            days_with_data: 0
+        };
+    }
+
+    // Fix getWeekStats to return proper format
+    // Fix getWeekStats to return proper format
+   getWeekStats() {
+       const totalWeeks = this.data.weeklyData.length;
+       const currentWeek = this.getCurrentWeekData();
+       const averageMinutes = totalWeeks > 0 ? 
+           this.data.weeklyData.reduce((sum, week) => sum + week.totalMinutes, 0) / totalWeeks : 0;
+       
+       return {
+           currentWeek: currentWeek,
+           totalWeeks: totalWeeks,
+           averageMinutes: Math.round(averageMinutes),
+           averageHours: this.formatMinutesToHours(Math.round(averageMinutes)),
+           averageFormatted: this.formatMinutesToHours(Math.round(averageMinutes)),
+           bestWeek: totalWeeks > 0 ? this.data.weeklyData[0] : null // First in sorted array
+       };
+   }
+
+   // Fix addTimeToSlot to handle both display names and internal names
+   addTimeToSlot(slotName, minutesToAdd) {
+       const today = this.getTodayDateString();
+       this.initializeTodayData();
+       
+       // Enhanced slot mapping to handle all possible input formats
+       const slotMapping = {
+           // Display names from UI
+           '5-6 AM': '5-6am', '6-7 AM': '6-7am', '7-8 AM': '7-8am', '8-9 AM': '8-9am',
+           '9-10 AM': '9-10am', '10-11 AM': '10-11am', '11-12 PM': '11-12pm', '12-1 PM': '12-1pm',
+           '1-2 PM': '1-2pm', '2-3 PM': '2-3pm', '3-4 PM': '3-4pm', '4-5 PM': '4-5pm',
+           '5-6 PM': '5-6pm', '6-7 PM': '6-7pm', '7-8 PM': '7-8pm', '8-9 PM': '8-9pm',
+           'Other Time': 'other',
+           // Database field names from old system
+           'slot_5_6_am': '5-6am', 'slot_6_7_am': '6-7am', 'slot_7_8_am': '7-8am', 'slot_8_9_am': '8-9am',
+           'slot_9_10_am': '9-10am', 'slot_10_11_am': '10-11am', 'slot_11_12_am': '11-12pm', 'slot_12_1_pm': '12-1pm',
+           'slot_1_2_pm': '1-2pm', 'slot_2_3_pm': '2-3pm', 'slot_3_4_pm': '3-4pm', 'slot_4_5_pm': '4-5pm',
+           'slot_5_6_pm': '5-6pm', 'slot_6_7_pm': '6-7pm', 'slot_7_8_pm': '7-8pm', 'slot_8_9_pm': '8-9pm',
+           'other_time': 'other',
+           // Direct internal names (pass through)
+           '5-6am': '5-6am', '6-7am': '6-7am', '7-8am': '7-8am', '8-9am': '8-9am',
+           '9-10am': '9-10am', '10-11am': '10-11am', '11-12pm': '11-12pm', '12-1pm': '12-1pm',
+           '1-2pm': '1-2pm', '2-3pm': '2-3pm', '3-4pm': '3-4pm', '4-5pm': '4-5pm',
+           '5-6pm': '5-6pm', '6-7pm': '6-7pm', '7-8pm': '7-8pm', '8-9pm': '8-9pm',
+           'other': 'other'
+       };
+       
+       const internalSlotName = slotMapping[slotName] || slotName;
+       
+       console.log(`🕐 Adding ${minutesToAdd} minutes to slot: ${slotName} -> ${internalSlotName}`);
+       
+       // Add time to the slot
+       this.data.dailyData[today].slots[internalSlotName] = 
+           (this.data.dailyData[today].slots[internalSlotName] || 0) + minutesToAdd;
+       
+       // Recalculate total
+       this.data.dailyData[today].totalMinutes = Object.values(this.data.dailyData[today].slots)
+           .reduce((sum, val) => sum + val, 0);
+       
+       this.saveData();
+       this.updateWeeklyData();
+       
+       console.log(`✅ Updated ${internalSlotName}: now ${this.data.dailyData[today].slots[internalSlotName]} minutes`);
+       
+       return this.data.dailyData[today];
+   }
+
+   // Fix getDailyDataForMonth to return proper format
+   getDailyDataForMonth(year, month) {
+       const monthData = [];
+       const startDate = new Date(year, month - 1, 1);
+       const endDate = new Date(year, month, 0); // Last day of month
+       
+       for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+           const dateStr = d.toISOString().split('T')[0];
+           const dayData = this.data.dailyData[dateStr];
+           
+           if (dayData && dayData.totalMinutes > 0) {
+               monthData.push({
+                   date: dateStr,
+                   day_name: dayData.dayName,
+                   total_minutes: dayData.totalMinutes,
+                   total_hours: this.formatMinutesToHours(dayData.totalMinutes),
+                   notes: dayData.notes || ''
+               });
+           }
+       }
+       
+       return monthData;
+   }
+
+   // Fix getDataForDate to return proper format for day detail
+   getDataForDate(date) {
+       if (this.data.dailyData[date]) {
+           const dayData = this.data.dailyData[date];
+           
+           // Convert slots to display format for day detail
+           const slots = [];
+           const slotLabels = {
+               '5-6am': '5-6 AM', '6-7am': '6-7 AM', '7-8am': '7-8 AM', '8-9am': '8-9 AM',
+               '9-10am': '9-10 AM', '10-11am': '10-11 AM', '11-12pm': '11-12 PM', '12-1pm': '12-1 PM',
+               '1-2pm': '1-2 PM', '2-3pm': '2-3 PM', '3-4pm': '3-4 PM', '4-5pm': '4-5 PM',
+               '5-6pm': '5-6 PM', '6-7pm': '6-7 PM', '7-8pm': '7-8 PM', '8-9pm': '8-9 PM',
+               'other': 'Other Time'
+           };
+           
+           Object.entries(dayData.slots).forEach(([slot, minutes]) => {
+               if (minutes > 0) {
+                   slots.push({
+                       name: slotLabels[slot] || slot,
+                       minutes: minutes
+                   });
+               }
+           });
+           
+           return {
+               date: date,
+               day_name: dayData.dayName,
+               total_minutes: dayData.totalMinutes,
+               notes: dayData.notes || '',
+               slots: slots
+           };
+       }
+       return null;
+   }
+
+   // Add function to get statistics for data management
+    getDataStatistics() {
+        const totalDays = Object.keys(this.data.dailyData).length;
+        const totalMinutes = Object.values(this.data.dailyData)
+            .reduce((sum, day) => sum + (day.totalMinutes || 0), 0);
+        
+        return {
+            totalDays: totalDays,
+            totalMinutes: totalMinutes,
+            totalHours: this.formatMinutesToHours(totalMinutes)
+        };
+    }
+
+    // Add this function to clean up inconsistent slot data
+    // Add this function to clean up inconsistent slot data
+    cleanupSlotData() {
+        console.log('🧹 Cleaning up slot data inconsistencies...');
+        
+        let globalNeedsUpdate = false; // Move variable to proper scope
+        
+        Object.keys(this.data.dailyData).forEach(dateKey => {
+            const dayData = this.data.dailyData[dateKey];
+            let dayNeedsUpdate = false; // Local variable for this day
+            
+            // Check for any database field names in slots and convert them
+            const slotsToFix = {
+                'slot_5_6_am': '5-6am',
+                'slot_6_7_am': '6-7am', 
+                'slot_7_8_am': '7-8am',
+                'slot_8_9_am': '8-9am',
+                'slot_9_10_am': '9-10am',
+                'slot_10_11_am': '10-11am',
+                'slot_11_12_am': '11-12pm',
+                'slot_12_1_pm': '12-1pm',
+                'slot_1_2_pm': '1-2pm',
+                'slot_2_3_pm': '2-3pm',
+                'slot_3_4_pm': '3-4pm',
+                'slot_4_5_pm': '4-5pm',
+                'slot_5_6_pm': '5-6pm',
+                'slot_6_7_pm': '6-7pm',
+                'slot_7_8_pm': '7-8pm',
+                'slot_8_9_pm': '8-9pm',
+                'other_time': 'other'
+            };
+            
+            Object.entries(slotsToFix).forEach(([oldKey, newKey]) => {
+                if (dayData.slots && dayData.slots[oldKey] !== undefined) {
+                    console.log(`🔄 Converting ${oldKey} to ${newKey} for ${dateKey}`);
+                    
+                    // Move the value to correct key
+                    if (!dayData.slots[newKey]) {
+                        dayData.slots[newKey] = dayData.slots[oldKey];
+                    } else {
+                        // If both exist, add them together
+                        dayData.slots[newKey] += dayData.slots[oldKey];
+                    }
+                    
+                    // Remove old key
+                    delete dayData.slots[oldKey];
+                    dayNeedsUpdate = true;
+                    globalNeedsUpdate = true;
+                }
+            });
+            
+            if (dayNeedsUpdate) {
+                // Recalculate total for this day
+                dayData.totalMinutes = Object.values(dayData.slots).reduce((sum, val) => sum + val, 0);
+            }
+        });
+        
+        if (globalNeedsUpdate) {
+            this.saveData();
+            console.log('✅ Slot data cleanup completed');
+        } else {
+            console.log('✅ No slot data cleanup needed');
+        }
+    }
+
+    // Recalculate all week data with new Monday-Sunday logic
+    recalculateAllWeekData() {
+        console.log('🔄 Recalculating all week data with Monday-Sunday logic...');
+        
+        // Clear existing week data
+        this.data.weeklyData = [];
+        
+        // Get all dates that have data
+        const allDates = Object.keys(this.data.dailyData)
+            .filter(date => this.data.dailyData[date].totalMinutes > 0)
+            .sort();
+        
+        if (allDates.length === 0) {
+            console.log('📝 No data to recalculate');
+            return;
+        }
+        
+        // Group dates by week
+        const weekGroups = {};
+        
+        allDates.forEach(dateStr => {
+            const date = new Date(dateStr + 'T00:00:00');
+            const year = date.getFullYear();
+            
+            // Calculate week number using new logic
+            const tempDate = new Date(date.getTime());
+            tempDate.setDate(tempDate.getDate() + 4 - (tempDate.getDay() || 7));
+            const yearStart = new Date(tempDate.getFullYear(), 0, 1);
+            const weekNumber = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+            
+            const weekKey = `${year}-W${weekNumber}`;
+            
+            if (!weekGroups[weekKey]) {
+                weekGroups[weekKey] = {
+                    year: year,
+                    weekNumber: weekNumber,
+                    dates: [],
+                    totalMinutes: 0
+                };
+            }
+            
+            weekGroups[weekKey].dates.push(dateStr);
+            weekGroups[weekKey].totalMinutes += this.data.dailyData[dateStr].totalMinutes;
+        });
+        
+        // Convert groups to week data
+        Object.values(weekGroups).forEach(group => {
+            const weekDates = this.getWeekDates(group.year, group.weekNumber);
+            
+            const weekData = {
+                weekNumber: group.weekNumber,
+                year: group.year,
+                dateRange: this.getWeekDateRange(weekDates),
+                totalMinutes: group.totalMinutes,
+                totalHours: this.formatMinutesToHours(group.totalMinutes),
+                daysWithData: group.dates.length,
+                rank: 0 // Will be calculated in ranking update
+            };
+            
+            this.data.weeklyData.push(weekData);
+        });
+        
+        // Update rankings
+        this.updateWeeklyRankings();
+        this.saveData();
+        
+        console.log(`✅ Recalculated ${this.data.weeklyData.length} weeks`);
+    }
+
+    // Temporary function to fix week numbers - call once to clean up data
+fixWeekNumbers() {
+    console.log('🔧 Fixing existing week numbers...');
+    
+    // Clear all week data and recalculate
+    this.data.weeklyData = [];
+    
+    // Recalculate all weeks with fixed logic
+    this.recalculateAllWeekData();
+    
+    console.log('✅ Week numbers fixed');
+}
+
 }
 
 module.exports = ProductivityJSONDB;

@@ -127,23 +127,33 @@ function updateTimerDisplay() {
 
 async function updateStatsDisplay() {
     try {
+        console.log('🔄 Updating stats display...');
+        
         // Force weekly data update first
         await ipcRenderer.invoke('update-weekly-data');
+        console.log('✅ Weekly data updated');
         
         // Get today's data
         const todayData = await ipcRenderer.invoke('get-today-data');
         const todayMinutes = todayData ? todayData.total_minutes : 0;
+        console.log('📊 Today data:', todayData);
         
         // Get current week data (after update)
         const weekData = await ipcRenderer.invoke('get-current-week-data');
+        console.log('🗓️ Week data received:', weekData);
+        
         const weekMinutes = weekData ? weekData.total_minutes : 0;
+        console.log('📈 Week minutes:', weekMinutes);
         
         // Update display
         todayTotal.textContent = formatTime(todayMinutes);
         weekTotal.textContent = formatTime(weekMinutes);
         
+        console.log('✅ Stats display updated successfully');
+        console.log(`Today: ${formatTime(todayMinutes)}, Week: ${formatTime(weekMinutes)}`);
+        
     } catch (error) {
-        console.error('Error updating stats:', error);
+        console.error('❌ Error updating stats:', error);
         todayTotal.textContent = 'Error';
         weekTotal.textContent = 'Error';
     }
@@ -272,6 +282,8 @@ function playAlarmSound() {
 // Weekly ranking functionality
 async function updateWeeklyRanking() {
     try {
+        console.log('📊 Starting weekly ranking update...');
+        
         // Update weekly data in database
         await ipcRenderer.invoke('update-weekly-data');
         
@@ -279,16 +291,31 @@ async function updateWeeklyRanking() {
         const currentWeekRank = await ipcRenderer.invoke('get-current-week-rank');
         const weekStats = await ipcRenderer.invoke('get-week-stats');
         
+        console.log('📊 Current week rank data:', currentWeekRank);
+        console.log('📊 Week stats data:', weekStats);
+        
+        // Get the current week data to ensure we have the correct total
+        const weekData = await ipcRenderer.invoke('get-current-week-data');
+        console.log('📊 Week data for ranking:', weekData);
+        
         // Update week total display with rank
-        if (currentWeekRank && weekStats) {
-            const rankText = currentWeekRank.rank ? `#${currentWeekRank.rank}` : '#1';
+        if (weekData && weekStats) {
+            const rankText = currentWeekRank?.rank ? `#${currentWeekRank.rank}` : '#1';
             const totalWeeks = weekStats.totalWeeks || 1;
-            weekTotal.textContent = `${currentWeekRank.total_hours_formatted || '0H 0M'} (Rank ${rankText}/${totalWeeks})`;
+            
+            // Use the week data total minutes, not the rank data
+            const weekTotalFormatted = formatTime(weekData.total_minutes);
+            
+            weekTotal.textContent = `${weekTotalFormatted} (Rank ${rankText}/${totalWeeks})`;
+            
+            console.log(`📊 Updated week display: ${weekTotalFormatted} (Rank ${rankText}/${totalWeeks})`);
+        } else {
+            console.log('⚠️ Missing week data or stats for ranking update');
         }
         
-        console.log('📊 Weekly ranking updated');
+        console.log('📊 Weekly ranking updated successfully');
     } catch (error) {
-        console.error('Error updating weekly ranking:', error);
+        console.error('❌ Error updating weekly ranking:', error);
     }
 }
 

@@ -235,51 +235,63 @@ class ProductivityJSONDB {
 
     // Update weekly data
     updateWeeklyData() {
-        // Get current week data
-        const currentWeek = this.getCurrentWeekNumber();
+    console.log('🔄 Updating weekly data...');
+    
+    // Get current week data
+    const currentWeek = this.getCurrentWeekNumber();
     const currentYear = new Date().getFullYear();
-        
-        // Calculate week totals using consistent date range
-        // Calculate week totals using consistent date calculation
-const weekDates = this.getWeekDates(currentYear, currentWeek);
-let weekTotal = 0;
-let daysWithData = 0;
+    
+    console.log(`📅 Updating data for week ${currentWeek} of ${currentYear}`);
+    
+    // Calculate week totals using consistent date calculation
+    const weekDates = this.getWeekDates(currentYear, currentWeek);
+    let weekTotal = 0;
+    let daysWithData = 0;
 
-weekDates.forEach(dateStr => {
-    if (this.data.dailyData[dateStr]) {
-        weekTotal += this.data.dailyData[dateStr].totalMinutes;
-        if (this.data.dailyData[dateStr].totalMinutes > 0) {
-            daysWithData++;
-        }
-    }
-});
+    console.log('📊 Week dates:', weekDates);
 
-        
-        // Update or create week entry
-        const weekIndex = this.data.weeklyData.findIndex(w => 
-            w.weekNumber === currentWeek && w.year === currentYear
-        );
-        
-        const weekData = {
-            weekNumber: currentWeek,
-            year: currentYear,
-            dateRange: this.getWeekDateRangeString(weekDates),
-            totalMinutes: weekTotal,
-            totalHours: this.formatMinutesToHours(weekTotal),
-            daysWithData: daysWithData,
-            rank: 0 // Will be calculated in ranking update
-        };
-        
-        if (weekIndex >= 0) {
-            this.data.weeklyData[weekIndex] = weekData;
-        } else {
-            this.data.weeklyData.push(weekData);
+    weekDates.forEach(dateStr => {
+        if (this.data.dailyData[dateStr]) {
+            const dayMinutes = this.data.dailyData[dateStr].totalMinutes || 0;
+            weekTotal += dayMinutes;
+            if (dayMinutes > 0) {
+                daysWithData++;
+            }
+            console.log(`📊 ${dateStr}: ${dayMinutes} minutes`);
         }
-        
-        // Update rankings
-        this.updateWeeklyRankings();
-        this.saveData();
+    });
+    
+    console.log(`📈 Week total: ${weekTotal} minutes from ${daysWithData} days`);
+    
+    // Update or create week entry
+    const weekIndex = this.data.weeklyData.findIndex(w => 
+        w.weekNumber === currentWeek && w.year === currentYear
+    );
+    
+    const weekData = {
+        weekNumber: currentWeek,
+        year: currentYear,
+        dateRange: this.getWeekDateRangeString(weekDates),
+        totalMinutes: weekTotal,
+        totalHours: this.formatMinutesToHours(weekTotal),
+        daysWithData: daysWithData,
+        rank: 0 // Will be calculated in ranking update
+    };
+    
+    if (weekIndex >= 0) {
+        console.log('📝 Updating existing week entry');
+        this.data.weeklyData[weekIndex] = weekData;
+    } else {
+        console.log('📝 Creating new week entry');
+        this.data.weeklyData.push(weekData);
     }
+    
+    // Update rankings
+    this.updateWeeklyRankings();
+    this.saveData();
+    
+    console.log('✅ Weekly data updated successfully');
+}
 
     // Get current week number (Monday-Sunday) - Fixed calculation with SQLite logic
 getCurrentWeekNumber() {
@@ -650,9 +662,44 @@ getWeekDateRange(date) {
 
     // Get current week rank
     getCurrentWeekRank() {
-        const currentWeek = this.getCurrentWeekData();
-        return currentWeek ? { rank: currentWeek.rank, total: this.data.weeklyData.length } : { rank: 0, total: 0 };
+    console.log('📊 Getting current week rank...');
+    
+    // Ensure weekly data is up to date
+    this.updateWeeklyData();
+    
+    const currentWeek = this.getCurrentWeekNumber();
+    const currentYear = new Date().getFullYear();
+    
+    console.log(`📊 Looking for rank of week ${currentWeek}, ${currentYear}`);
+    
+    // Find current week data
+    const currentWeekData = this.data.weeklyData.find(w => 
+        w.weekNumber === currentWeek && w.year === currentYear
+    );
+    
+    if (currentWeekData) {
+        console.log('📊 Current week rank data:', currentWeekData);
+        
+        return {
+            rank: currentWeekData.rank,
+            week_number: currentWeekData.weekNumber,
+            year: currentWeekData.year,
+            total_minutes: currentWeekData.totalMinutes,
+            total_hours_formatted: currentWeekData.totalHours,
+            total: this.data.weeklyData.length
+        };
     }
+    
+    console.log('⚠️ No current week data found for ranking');
+    return { 
+        rank: 1, 
+        week_number: currentWeek,
+        year: currentYear,
+        total_minutes: 0,
+        total_hours_formatted: '0H 0M',
+        total: 1 
+    };
+}
 
     // Get week statistics
     getWeekStats() {
@@ -1025,38 +1072,70 @@ getWeekDateRange(date) {
 
     // Fix getCurrentWeekData to return proper format
     getCurrentWeekData() {
-        this.updateWeeklyData(); // Ensure it's up to date
+    console.log('🗓️ Getting current week data...');
+    
+    // Force update weekly data first
+    this.updateWeeklyData();
+    
+    const currentWeek = this.getCurrentWeekNumber();
+    const currentYear = new Date().getFullYear();
+    
+    console.log(`📅 Looking for week ${currentWeek} of ${currentYear}`);
+    
+    // Find week data in the array
+    let weekData = this.data.weeklyData.find(w => 
+        w.weekNumber === currentWeek && w.year === currentYear
+    );
+    
+    // If no week data exists, calculate it manually from daily data
+    if (!weekData) {
+        console.log('📊 No existing week data, calculating from daily data...');
         
-        const currentWeek = this.getCurrentWeekNumber();
-        const currentYear = new Date().getFullYear();
+        const weekDates = this.getWeekDates(currentYear, currentWeek);
+        let weekTotal = 0;
+        let daysWithData = 0;
         
-        const weekData = this.data.weeklyData.find(w => 
-            w.weekNumber === currentWeek && w.year === currentYear
-        );
+        weekDates.forEach(dateStr => {
+            if (this.data.dailyData[dateStr]) {
+                weekTotal += this.data.dailyData[dateStr].totalMinutes;
+                if (this.data.dailyData[dateStr].totalMinutes > 0) {
+                    daysWithData++;
+                }
+            }
+        });
         
-        if (weekData) {
-            return {
-                week_number: weekData.weekNumber,
-                year: weekData.year,
-                date_range: weekData.dateRange,
-                total_minutes: weekData.totalMinutes,
-                total_hours_formatted: weekData.totalHours,
-                rank: weekData.rank,
-                days_with_data: weekData.daysWithData
-            };
-        }
-        
-        // Return default structure if no data
-        return {
-            week_number: currentWeek,
+        // Create new week data entry
+        weekData = {
+            weekNumber: currentWeek,
             year: currentYear,
-            date_range: this.getWeekDateRangeString(this.getWeekDates(currentYear, currentWeek)),
-            total_minutes: 0,
-            total_hours_formatted: '0H 0M',
-            rank: 1,
-            days_with_data: 0
+            dateRange: this.getWeekDateRangeString(weekDates),
+            totalMinutes: weekTotal,
+            totalHours: this.formatMinutesToHours(weekTotal),
+            daysWithData: daysWithData,
+            rank: 1 // Default rank
         };
+        
+        // Add to weekly data array
+        this.data.weeklyData.push(weekData);
+        this.updateWeeklyRankings();
+        this.saveData();
+        
+        console.log('📊 Created new week data:', weekData);
     }
+    
+    console.log('✅ Current week data:', weekData);
+    
+    // Return in the format expected by renderer
+    return {
+        week_number: weekData.weekNumber,
+        year: weekData.year,
+        date_range: weekData.dateRange,
+        total_minutes: weekData.totalMinutes,
+        total_hours_formatted: weekData.totalHours,
+        rank: weekData.rank,
+        days_with_data: weekData.daysWithData
+    };
+}
 
     // Fix getWeekStats to return proper format
     // Fix getWeekStats to return proper format

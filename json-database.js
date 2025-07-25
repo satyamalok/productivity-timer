@@ -237,21 +237,23 @@ class ProductivityJSONDB {
     updateWeeklyData() {
         // Get current week data
         const currentWeek = this.getCurrentWeekNumber();
-        const currentYear = new Date().getFullYear();
+    const currentYear = new Date().getFullYear();
         
-        // Calculate week totals
-        const weekDates = this.getWeekDates(currentYear, currentWeek);
-        let weekTotal = 0;
-        let daysWithData = 0;
-        
-        weekDates.forEach(dateStr => {
-            if (this.data.dailyData[dateStr]) {
-                weekTotal += this.data.dailyData[dateStr].totalMinutes;
-                if (this.data.dailyData[dateStr].totalMinutes > 0) {
-                    daysWithData++;
-                }
-            }
-        });
+        // Calculate week totals using consistent date range
+        // Calculate week totals using consistent date calculation
+const weekDates = this.getWeekDates(currentYear, currentWeek);
+let weekTotal = 0;
+let daysWithData = 0;
+
+weekDates.forEach(dateStr => {
+    if (this.data.dailyData[dateStr]) {
+        weekTotal += this.data.dailyData[dateStr].totalMinutes;
+        if (this.data.dailyData[dateStr].totalMinutes > 0) {
+            daysWithData++;
+        }
+    }
+});
+
         
         // Update or create week entry
         const weekIndex = this.data.weeklyData.findIndex(w => 
@@ -261,7 +263,7 @@ class ProductivityJSONDB {
         const weekData = {
             weekNumber: currentWeek,
             year: currentYear,
-            dateRange: this.getWeekDateRange(weekDates),
+            dateRange: this.getWeekDateRangeString(weekDates),
             totalMinutes: weekTotal,
             totalHours: this.formatMinutesToHours(weekTotal),
             daysWithData: daysWithData,
@@ -279,88 +281,47 @@ class ProductivityJSONDB {
         this.saveData();
     }
 
-    // Get current week number (Monday-Sunday) - Fixed calculation
+    // Get current week number (Monday-Sunday) - Fixed calculation with SQLite logic
 getCurrentWeekNumber() {
     const today = new Date();
     
-    // Get Monday of current week
-    const dayOfWeek = today.getDay(); // 0 = Sunday, 1 = Monday, etc.
-    const daysFromMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1; // Sunday is 6 days from Monday
-    
-    const currentMonday = new Date(today);
-    currentMonday.setDate(today.getDate() - daysFromMonday);
-    currentMonday.setHours(0, 0, 0, 0);
-    
-    // Get the first Monday of the year
-    const year = today.getFullYear();
-    const jan1 = new Date(year, 0, 1);
-    const jan1Day = jan1.getDay();
-    
-    // Calculate days to first Monday
-    let daysToFirstMonday;
-    if (jan1Day === 1) {
-        daysToFirstMonday = 0; // Jan 1 is Monday
-    } else if (jan1Day === 0) {
-        daysToFirstMonday = 1; // Jan 1 is Sunday, Monday is next day
-    } else {
-        daysToFirstMonday = 8 - jan1Day; // Days to reach next Monday
-    }
-    
-    const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
-    
-    // Calculate week number
-    const weekNumber = Math.floor((currentMonday - firstMonday) / (7 * 24 * 60 * 60 * 1000)) + 1;
-    
-    console.log(`📅 Today: ${today.toDateString()}`);
-    console.log(`📅 Current Monday: ${currentMonday.toDateString()}`);
-    console.log(`📅 First Monday of ${year}: ${firstMonday.toDateString()}`);
-    console.log(`📅 Week Number: ${weekNumber}`);
-    
-    return weekNumber;
+    // Use the standardized week calculation
+    return this.getWeekNumberForDate(today);
 }
 
     
-    // Helper function to get week number for any date
-    getWeekNumberForDate(date) {
-        const d = new Date(date);
-        const dayOfWeek = d.getDay();
-        const daysFromMonday = (dayOfWeek === 0) ? 6 : dayOfWeek - 1;
-        
-        const monday = new Date(d);
-        monday.setDate(d.getDate() - daysFromMonday);
-        monday.setHours(0, 0, 0, 0);
-        
-        const jan1 = new Date(monday.getFullYear(), 0, 1);
-        const jan1DayOfWeek = jan1.getDay();
-        const daysToFirstMonday = (jan1DayOfWeek === 1) ? 0 : (8 - jan1DayOfWeek) % 7;
-        const firstMonday = new Date(jan1);
-        firstMonday.setDate(jan1.getDate() + daysToFirstMonday);
-        
-        if (monday < firstMonday) {
-            return 52; // Assume 52 weeks in previous year
-        }
-        
-        return Math.floor((monday - firstMonday) / (7 * 24 * 60 * 60 * 1000)) + 1;
-    }
+    // Helper function to get week number for any date (ISO week standard)
+getWeekNumberForDate(date) {
+    const d = new Date(date);
+    
+    // Set to nearest Thursday: current date + 4 - current day number
+    // Make Sunday's day number 7
+    const dayNum = d.getDay() || 7;
+    d.setDate(d.getDate() + 4 - dayNum);
+    
+    // Get first Thursday of year
+    const yearStart = new Date(d.getFullYear(), 0, 1);
+    const yearFirstThursday = new Date(yearStart);
+    const yearFirstThursdayDayNum = yearFirstThursday.getDay() || 7;
+    yearFirstThursday.setDate(yearFirstThursday.getDate() + 4 - yearFirstThursdayDayNum);
+    
+    // Calculate week number
+    const weekNumber = Math.ceil((((d - yearFirstThursday) / 86400000) + 1) / 7);
+    
+    console.log(`📅 Week calculation for ${date.toDateString()}: Week ${weekNumber}`);
+    return weekNumber;
+}
 
     // Get dates for a specific week (Monday-Sunday) - Fixed calculation
 getWeekDates(year, weekNumber) {
-    // Get the first Monday of the year
-    const jan1 = new Date(year, 0, 1);
-    const jan1Day = jan1.getDay();
+    // Find January 4th (always in week 1)
+    const jan4 = new Date(year, 0, 4);
     
-    let daysToFirstMonday;
-    if (jan1Day === 1) {
-        daysToFirstMonday = 0; // Jan 1 is Monday
-    } else if (jan1Day === 0) {
-        daysToFirstMonday = 1; // Jan 1 is Sunday, Monday is next day
-    } else {
-        daysToFirstMonday = 8 - jan1Day; // Days to reach next Monday
-    }
+    // Find Monday of week 1 (3 days before Thursday Jan 4th)
+    const firstMonday = new Date(jan4);
+    firstMonday.setDate(jan4.getDate() - ((jan4.getDay() + 6) % 7) + 1);
     
-    const firstMonday = new Date(year, 0, 1 + daysToFirstMonday);
-    
-    // Calculate the Monday of the requested week
+    // Calculate target Monday for the given week number
     const targetMonday = new Date(firstMonday);
     targetMonday.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
     
@@ -375,16 +336,39 @@ getWeekDates(year, weekNumber) {
     console.log(`📅 Week ${weekNumber}, ${year}: ${dates[0]} (Mon) to ${dates[6]} (Sun)`);
     return dates;
 }
+
+// Get week date range (Monday to Sunday) - matches SQLite version logic
+getWeekDateRange(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    
+    // Calculate Monday (start of week)
+    const mondayOffset = day === 0 ? -6 : 1 - day; // Handle Sunday as day 0
+    const monday = new Date(d);
+    monday.setDate(d.getDate() + mondayOffset);
+    
+    // Calculate Sunday (end of week)
+    const sunday = new Date(monday);
+    sunday.setDate(monday.getDate() + 6);
+    
+    return {
+        start: monday.toISOString().split('T')[0],
+        end: sunday.toISOString().split('T')[0],
+        startFormatted: monday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }),
+        endFormatted: sunday.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+    };
+}
+
     // Get week date range string
-    getWeekDateRange(weekDates) {
-        const startDate = new Date(weekDates[0]);
-        const endDate = new Date(weekDates[6]);
-        
-        const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-        
-        return `${startStr} - ${endStr}`;
-    }
+    getWeekDateRangeString(weekDates) {
+    const startDate = new Date(weekDates[0]);
+    const endDate = new Date(weekDates[6]);
+    
+    const startStr = startDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const endStr = endDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    
+    return `${startStr} - ${endStr}`;
+}
 
     // Update weekly rankings
     updateWeeklyRankings() {
@@ -1066,7 +1050,7 @@ getWeekDates(year, weekNumber) {
         return {
             week_number: currentWeek,
             year: currentYear,
-            date_range: this.getWeekDateRange(this.getWeekDates(currentYear, currentWeek)),
+            date_range: this.getWeekDateRangeString(this.getWeekDates(currentYear, currentWeek)),
             total_minutes: 0,
             total_hours_formatted: '0H 0M',
             rank: 1,
@@ -1297,14 +1281,11 @@ getWeekDates(year, weekNumber) {
         const weekGroups = {};
         
         allDates.forEach(dateStr => {
-            const date = new Date(dateStr + 'T00:00:00');
-            const year = date.getFullYear();
-            
-            // Calculate week number using new logic
-            const tempDate = new Date(date.getTime());
-            tempDate.setDate(tempDate.getDate() + 4 - (tempDate.getDay() || 7));
-            const yearStart = new Date(tempDate.getFullYear(), 0, 1);
-            const weekNumber = Math.ceil((((tempDate - yearStart) / 86400000) + 1) / 7);
+    const date = new Date(dateStr + 'T00:00:00');
+    const year = date.getFullYear();
+    
+    // Use consistent week number calculation
+    const weekNumber = this.getWeekNumberForDate(date);
             
             const weekKey = `${year}-W${weekNumber}`;
             
@@ -1328,7 +1309,7 @@ getWeekDates(year, weekNumber) {
             const weekData = {
                 weekNumber: group.weekNumber,
                 year: group.year,
-                dateRange: this.getWeekDateRange(weekDates),
+                dateRange: this.getWeekDateRangeString(weekDates),
                 totalMinutes: group.totalMinutes,
                 totalHours: this.formatMinutesToHours(group.totalMinutes),
                 daysWithData: group.dates.length,
@@ -1356,7 +1337,10 @@ fixWeekNumbers() {
     this.recalculateAllWeekData();
     
     console.log('✅ Week numbers fixed');
+   
 }
+
+
 
 }
 

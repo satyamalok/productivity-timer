@@ -906,10 +906,13 @@ function setupManualEntryButton() {
         
         console.log('✅ Manual entry button setup complete');
     } else {
-        console.warn('⚠️ Manual entry button not found');
+        // Don't log error, the button might not exist yet
+        console.log('⏳ Manual entry button not found - will retry later');
+        
+        // Retry after a short delay
+        setTimeout(setupManualEntryButton, 500);
     }
 }
-
 // Data Management functionality
 function setupDataManagement() {
     const exportBtn = document.getElementById('exportBtn');
@@ -1527,7 +1530,22 @@ document.addEventListener('DOMContentLoaded', () => {
     setupHistoryFeatures();
     
     // Update stats every minute
-    setInterval(updateStatsDisplay, 60000);
+    // Update stats every minute and also after any data changes
+setInterval(updateStatsDisplay, 60000);
+
+// Also update stats after any timer operations
+const originalStopTimer = stopTimerEnhanced;
+const originalPauseTimer = pauseTimerEnhanced;
+
+stopTimerEnhanced = async function() {
+    await originalStopTimer();
+    await updateStatsDisplay(); // Refresh stats after stopping
+};
+
+pauseTimerEnhanced = async function() {
+    await originalPauseTimer();
+    await updateStatsDisplay(); // Refresh stats after pausing
+};
     
     console.log('✅ App initialization complete');
 });

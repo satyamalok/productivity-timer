@@ -162,7 +162,7 @@ function createWindow() {
   });
 
   // Temporary: Open DevTools to see any renderer errors
-  mainWindow.webContents.openDevTools();
+  //mainWindow.webContents.openDevTools();
 }
 
 function createTray() {
@@ -310,16 +310,21 @@ function setupIPCHandlers() {
 
   ipcMain.handle('add-time-to-slot', (event, slotName, minutes) => {
     try {
-      if (!global.db) {
-        console.error('❌ Database not available for add-time-to-slot');
-        return null;
-      }
-      return global.db.addTimeToSlot(slotName, minutes);
+        if (!global.db) {
+            console.error('❌ Database not available for add-time-to-slot');
+            return null;
+        }
+        const result = global.db.addTimeToSlot(slotName, minutes);
+        
+        // Force weekly data update
+        global.db.updateWeeklyData();
+        
+        return result;
     } catch (error) {
-      console.error('Error adding time to slot:', error);
-      return null;
+        console.error('Error adding time to slot:', error);
+        return null;
     }
-  });
+});
 
   ipcMain.handle('update-slot-time', (event, slotName, newMinutes) => {
     try {

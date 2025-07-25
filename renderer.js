@@ -127,11 +127,14 @@ function updateTimerDisplay() {
 
 async function updateStatsDisplay() {
     try {
+        // Force weekly data update first
+        await ipcRenderer.invoke('update-weekly-data');
+        
         // Get today's data
         const todayData = await ipcRenderer.invoke('get-today-data');
         const todayMinutes = todayData ? todayData.total_minutes : 0;
         
-        // Get current week data
+        // Get current week data (after update)
         const weekData = await ipcRenderer.invoke('get-current-week-data');
         const weekMinutes = weekData ? weekData.total_minutes : 0;
         
@@ -146,8 +149,7 @@ async function updateStatsDisplay() {
     }
 
     // Update main slots display
-updateMainSlotsDisplay();
-
+    updateMainSlotsDisplay();
 }
 
 // Format time for display
@@ -832,13 +834,27 @@ window.showManualEntryDialog = async function() {
         
         console.log(`Adding ${addMinutes} minutes to ${selectedSlot.field}`);
         
+        // Debug code
+        console.log(`🔍 DEBUG - About to add time:`);
+        console.log(`- Selected slot field: ${selectedSlot.field}`);
+        console.log(`- Selected slot display: ${selectedSlot.display}`);
+        console.log(`- Minutes to add: ${addMinutes}`);
+        
         // Add time via IPC
         const result = await ipcRenderer.invoke('add-time-to-slot', selectedSlot.field, addMinutes);
-        console.log('IPC result:', result);
+        console.log('🔍 DEBUG - IPC result:', result);
+        
+        // Force update weekly data
+        console.log('🔍 DEBUG - Forcing weekly update...');
+        await ipcRenderer.invoke('update-weekly-data');
+        
+        // Get updated week data to verify
+        const updatedWeekData = await ipcRenderer.invoke('get-current-week-data');
+        console.log('🔍 DEBUG - Updated week data:', updatedWeekData);
         
         // Refresh displays
         await updateStatsDisplay();
-        await updateMainSlotsDisplay();
+        await updateMainSlotsDisplay();        
         
         // If today modal is open, refresh it
         const todayModal = document.getElementById('todayModal');
@@ -2325,8 +2341,8 @@ async function saveCurrentHourSession() {
             await ipcRenderer.invoke('add-time-to-slot', currentHourSlot, minutesToSave);
             
             // Update displays
-            updateStatsDisplay();
-            updateMainSlotsDisplay();
+await updateStatsDisplay();
+await updateMainSlotsDisplay();
             
             console.log(`✅ Saved: ${minutesToSave} minutes to ${currentHourSlot}`);
         } else {
